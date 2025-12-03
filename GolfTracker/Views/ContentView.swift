@@ -8,17 +8,14 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var store: DataStore
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        CourseListView(store: store)
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(DataStore())
 }
