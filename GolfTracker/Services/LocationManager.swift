@@ -3,9 +3,12 @@ import CoreLocation
 import Combine
 
 class LocationManager: NSObject, ObservableObject {
+    static let shared = LocationManager()
+
     private let locationManager = CLLocationManager()
 
     @Published var location: CLLocation?
+    @Published var heading: CLLocationDirection?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var errorMessage: String?
 
@@ -14,10 +17,11 @@ class LocationManager: NSObject, ObservableObject {
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = 1 // Update every 1 meter
+        locationManager.headingFilter = 5 // Update every 5 degrees
     }
 
     func requestPermission() {
-        #if os(iOS)
+        #if os(iOS) || os(watchOS)
         locationManager.requestWhenInUseAuthorization()
         #elseif os(macOS)
         // macOS doesn't require explicit permission request
@@ -25,7 +29,7 @@ class LocationManager: NSObject, ObservableObject {
     }
 
     func startTracking() {
-        #if os(iOS)
+        #if os(iOS) || os(watchOS)
         let isAuthorized = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
         #elseif os(macOS)
         let isAuthorized = authorizationStatus == .authorizedAlways
@@ -36,10 +40,20 @@ class LocationManager: NSObject, ObservableObject {
             return
         }
         locationManager.startUpdatingLocation()
+
+        #if os(iOS) || os(watchOS)
+        if CLLocationManager.headingAvailable() {
+            locationManager.startUpdatingHeading()
+        }
+        #endif
     }
 
     func stopTracking() {
         locationManager.stopUpdatingLocation()
+
+        #if os(iOS) || os(watchOS)
+        locationManager.stopUpdatingHeading()
+        #endif
     }
 
     func distance(to coordinate: CLLocationCoordinate2D) -> CLLocationDistance? {
@@ -69,7 +83,7 @@ extension LocationManager: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
 
-        #if os(iOS)
+        #if os(iOS) || os(watchOS)
         let authorized = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
         #elseif os(macOS)
         let authorized = authorizationStatus == .authorizedAlways
@@ -86,6 +100,15 @@ extension LocationManager: CLLocationManagerDelegate {
         guard let newLocation = locations.last else { return }
         location = newLocation
         errorMessage = nil
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        // Use true heading if available, otherwise use magnetic heading
+        if newHeading.trueHeading >= 0 {
+            heading = newHeading.trueHeading
+        } else {
+            heading = newHeading.magneticHeading
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
