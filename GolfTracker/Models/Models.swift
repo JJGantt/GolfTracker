@@ -26,7 +26,7 @@ enum StrokeLength: Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .redShort, .yellowShort: return "Short"
-        case .center: return "Center"
+        case .center: return "Good"
         case .yellowLong, .redLong: return "Long"
         }
     }
@@ -65,28 +65,38 @@ enum StrokeDirection: Codable, CaseIterable {
 }
 
 enum StrokeLocation: String, Codable, CaseIterable {
-    case oob = "OOB"
     case hazard = "Hazard"
-    case unplayable = "Unplayable"
     case rough = "Rough"
     case sand = "Sand"
+    case fringe = "Fringe"
     case fairway = "Fairway"
     case green = "Green"
+}
 
-    var addsPenaltyStroke: Bool {
-        switch self {
-        case .oob, .hazard, .unplayable:
-            return true
-        default:
-            return false
-        }
-    }
+enum StrokeContact: String, Codable, CaseIterable {
+    case fat = "Fat"
+    case clean = "Clean"
+    case top = "Top"
+}
+
+enum SwingStrength: String, Codable, CaseIterable {
+    case chip = "Chip"
+    case medium = "Medium"
+    case full = "Full"
 }
 
 struct Course: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var holes: [Hole]
+    var rating: Double?
+    var slope: Int?
+    var city: String?
+
+    var coordinate: CLLocationCoordinate2D? {
+        guard let firstHole = holes.first else { return nil }
+        return firstHole.coordinate
+    }
 }
 
 struct Hole: Identifiable, Codable, Hashable {
@@ -130,8 +140,12 @@ struct Stroke: Identifiable, Codable, Hashable {
     var length: StrokeLength?
     var direction: StrokeDirection?
     var location: StrokeLocation?
+    var contact: StrokeContact?
+    var swingStrength: SwingStrength?
     var landingLatitude: Double?
     var landingLongitude: Double?
+    var isPenalty: Bool
+    var trajectoryHeading: Double? // Direction user was trying to hit (in degrees)
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -142,13 +156,15 @@ struct Stroke: Identifiable, Codable, Hashable {
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
 
-    init(holeNumber: Int, strokeNumber: Int, coordinate: CLLocationCoordinate2D, club: Club) {
+    init(holeNumber: Int, strokeNumber: Int, coordinate: CLLocationCoordinate2D, club: Club, isPenalty: Bool = false, trajectoryHeading: Double? = nil) {
         self.holeNumber = holeNumber
         self.strokeNumber = strokeNumber
         self.latitude = coordinate.latitude
         self.longitude = coordinate.longitude
         self.club = club
         self.timestamp = Date()
+        self.isPenalty = isPenalty
+        self.trajectoryHeading = trajectoryHeading
     }
 }
 
@@ -158,11 +174,21 @@ struct Round: Identifiable, Codable, Hashable {
     var courseName: String
     var date: Date
     var strokes: [Stroke]
+    var holes: [Hole] // Course holes for Watch sync
+    var completedHoles: Set<Int> // Hole numbers that have been finished
+    var currentHoleIndex: Int // Current hole being played (synced between devices)
 
-    init(courseId: UUID, courseName: String) {
+    init(courseId: UUID, courseName: String, holes: [Hole] = []) {
         self.courseId = courseId
         self.courseName = courseName
         self.date = Date()
         self.strokes = []
+        self.holes = holes
+        self.completedHoles = []
+        self.currentHoleIndex = 0
+    }
+
+    func isHoleCompleted(_ holeNumber: Int) -> Bool {
+        return completedHoles.contains(holeNumber)
     }
 }

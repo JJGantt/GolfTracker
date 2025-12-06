@@ -11,6 +11,10 @@ import SwiftUI
 struct GolfTrackerApp: App {
     @StateObject private var store = DataStore()
 
+    init() {
+        print("🚀🚀🚀 APP LAUNCHED - GolfTracker is starting! 🚀🚀🚀")
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

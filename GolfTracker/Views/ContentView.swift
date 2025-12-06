@@ -11,7 +11,17 @@ struct ContentView: View {
     @EnvironmentObject var store: DataStore
 
     var body: some View {
-        CourseListView(store: store)
+        TabView {
+            CourseListView(store: store)
+                .tabItem {
+                    Label("Courses", systemImage: "map")
+                }
+
+            RoundsHistoryView(store: store)
+                .tabItem {
+                    Label("History", systemImage: "clock")
+                }
+        }
     }
 }
 
