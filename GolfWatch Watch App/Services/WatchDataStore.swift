@@ -26,7 +26,7 @@ class WatchDataStore: ObservableObject {
         return course.holes[currentHoleIndex]
     }
 
-    private func getCourse(for round: Round) -> Course? {
+    func getCourse(for round: Round) -> Course? {
         // Use holes from the synced round data
         return Course(
             id: round.courseId,
@@ -40,7 +40,7 @@ class WatchDataStore: ObservableObject {
 
     // MARK: - Stroke Management
 
-    func addStroke(club: Club) {
+    func addStroke(club: Club, trajectoryHeading: Double? = nil) {
         guard var round = currentRound,
               let hole = currentHole,
               let location = LocationManager.shared.location else { return }
@@ -52,7 +52,8 @@ class WatchDataStore: ObservableObject {
             holeNumber: hole.number,
             strokeNumber: strokeNumber,
             coordinate: location.coordinate,
-            club: club
+            club: club,
+            trajectoryHeading: trajectoryHeading
         )
 
         // Add to current round
@@ -69,41 +70,64 @@ class WatchDataStore: ObservableObject {
         syncStrokes()
     }
 
+    // MARK: - Round State Management (with automatic sync)
+
+    func updateCurrentHoleIndex(newIndex: Int) {
+        guard var round = currentRound else { return }
+
+        currentHoleIndex = newIndex
+        round.currentHoleIndex = newIndex
+        currentRound = round
+        saveToStorage()
+
+        // Sync to iPhone
+        WatchConnectivityManager.shared.sendRound(round)
+    }
+
+    func completeHole(holeNumber: Int) {
+        guard var round = currentRound else { return }
+
+        round.completedHoles.insert(holeNumber)
+        currentRound = round
+        saveToStorage()
+
+        // Sync to iPhone
+        WatchConnectivityManager.shared.sendRound(round)
+    }
+
+    func reopenHole(holeNumber: Int) {
+        guard var round = currentRound else { return }
+
+        round.completedHoles.remove(holeNumber)
+        currentRound = round
+        saveToStorage()
+
+        // Sync to iPhone
+        WatchConnectivityManager.shared.sendRound(round)
+    }
+
     func moveToNextHole() {
-        guard var round = currentRound,
-              let course = getCourse(for: round) else { return }
+        guard let course = getCourse(for: currentRound ?? Round(courseId: UUID(), courseName: "", holes: [])) else { return }
 
         if currentHoleIndex < course.holes.count - 1 {
-            currentHoleIndex += 1
-            round.currentHoleIndex = currentHoleIndex
-            currentRound = round
-            saveToStorage()
-
-            // Send update to iPhone
-            WatchConnectivityManager.shared.sendRound(round)
+            updateCurrentHoleIndex(newIndex: currentHoleIndex + 1)
         }
     }
 
     func moveToPreviousHole() {
-        guard var round = currentRound else { return }
-
         if currentHoleIndex > 0 {
-            currentHoleIndex -= 1
-            round.currentHoleIndex = currentHoleIndex
-            currentRound = round
-            saveToStorage()
-
-            // Send update to iPhone
-            WatchConnectivityManager.shared.sendRound(round)
+            updateCurrentHoleIndex(newIndex: currentHoleIndex - 1)
         }
     }
 
     func deleteLastStroke() {
-        guard var round = currentRound,
-              let hole = currentHole else { return }
+        guard var round = currentRound else { return }
 
-        // Find and remove the last stroke for this hole
-        let strokesForHole = round.strokes.filter { $0.holeNumber == hole.number }
+        // Get strokes for current hole
+        let hole = currentHole
+        let strokesForHole = hole.map { h in round.strokes.filter { $0.holeNumber == h.number } } ?? []
+
+        // If there are strokes on current hole, delete the last one
         if let lastStroke = strokesForHole.last,
            let index = round.strokes.firstIndex(where: { $0.id == lastStroke.id }) {
             round.strokes.remove(at: index)
@@ -116,15 +140,21 @@ class WatchDataStore: ObservableObject {
 
             saveToStorage()
             print("⌚ [WatchDataStore] Deleted last stroke")
-        } else if round.isHoleCompleted(hole.number) {
-            // No strokes to delete, but hole is completed - reopen it
-            round.completedHoles.remove(hole.number)
-            currentRound = round
-            saveToStorage()
-            print("⌚ [WatchDataStore] Reopened hole \(hole.number)")
 
             // Send update to iPhone
             WatchConnectivityManager.shared.sendRound(round)
+        } else if currentHoleIndex > 0,
+                  let course = getCourse(for: round) {
+            // No strokes on current hole - check if we just finished the previous hole
+            let previousHoleIdx = currentHoleIndex - 1
+            let previousHoleNumber = course.holes[previousHoleIdx].number
+
+            if round.isHoleCompleted(previousHoleNumber) {
+                // Undo the hole completion and go back to previous hole
+                reopenHole(holeNumber: previousHoleNumber)
+                updateCurrentHoleIndex(newIndex: previousHoleIdx)
+                print("⌚ [WatchDataStore] Undid hole completion, moved back to hole \(previousHoleNumber)")
+            }
         }
     }
 
@@ -164,7 +194,7 @@ class WatchDataStore: ObservableObject {
 
     // MARK: - Persistence
 
-    private func saveToStorage() {
+    func saveToStorage() {
         if let round = currentRound,
            let data = try? JSONEncoder().encode(round) {
             UserDefaults.standard.set(data, forKey: roundKey)
@@ -194,24 +224,16 @@ class WatchDataStore: ObservableObject {
     // MARK: - Hole Completion
 
     func finishCurrentHole() {
-        guard var round = currentRound,
-              let hole = currentHole else { return }
+        guard let hole = currentHole,
+              let course = getCourse(for: currentRound ?? Round(courseId: UUID(), courseName: "", holes: [])) else { return }
 
         // Mark hole as completed
-        round.completedHoles.insert(hole.number)
+        completeHole(holeNumber: hole.number)
 
         // Auto-advance to next hole if available
-        if let course = getCourse(for: round),
-           currentHoleIndex < course.holes.count - 1 {
-            currentHoleIndex += 1
-            round.currentHoleIndex = currentHoleIndex
+        if currentHoleIndex < course.holes.count - 1 {
+            updateCurrentHoleIndex(newIndex: currentHoleIndex + 1)
         }
-
-        currentRound = round
-        saveToStorage()
-
-        // Send update to iPhone
-        WatchConnectivityManager.shared.sendRound(round)
     }
 
     func isHoleCompleted(_ holeNumber: Int) -> Bool {

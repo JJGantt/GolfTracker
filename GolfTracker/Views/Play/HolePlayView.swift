@@ -35,6 +35,8 @@ struct HolePlayView: View {
     @State private var isAddingPenaltyStroke = false
     @State private var trajectoryHeading: Double? = nil // nil means default to hole direction
     @State private var forceUserHoleView = false // Toggle between tee/hole and user/hole view
+    @State private var isPlacingTarget = false
+    @State private var isDeleting = false
 
     init(store: DataStore, course: Course, resumingRound: Round? = nil, startingHoleNumber: Int? = nil) {
         self.store = store
@@ -101,16 +103,96 @@ struct HolePlayView: View {
         return round.isHoleCompleted(hole.number)
     }
 
+    private var canUndo: Bool {
+        guard activeRound != nil else { return false }
+
+        // Can undo if there are strokes on current hole
+        if !strokesForCurrentHole.isEmpty {
+            return true
+        }
+
+        // Can undo if we just finished the previous hole (no strokes on current, previous is completed)
+        if currentHoleIndex > 0,
+           let round = currentRound {
+            let previousHoleNumber = currentCourse.holes[currentHoleIndex - 1].number
+            return round.isHoleCompleted(previousHoleNumber)
+        }
+
+        return false
+    }
+
+    private var targetCoordinatesBinding: Binding<[CLLocationCoordinate2D]> {
+        Binding(
+            get: {
+                guard let round = self.currentRound,
+                      let hole = self.currentHole else { return [] }
+                return round.targets
+                    .filter { $0.holeNumber == hole.number }
+                    .map { $0.coordinate }
+            },
+            set: { newCoordinates in
+                guard let round = self.activeRound,
+                      let hole = self.currentHole else { return }
+
+                // Remove old targets for this hole
+                var updatedRound = self.store.rounds.first { $0.id == round.id } ?? round
+                updatedRound.targets.removeAll { $0.holeNumber == hole.number }
+
+                // Add new targets
+                let newTargets = newCoordinates.map { Target(holeNumber: hole.number, coordinate: $0) }
+                updatedRound.targets.append(contentsOf: newTargets)
+
+                // Update in store
+                if let index = self.store.rounds.firstIndex(where: { $0.id == round.id }) {
+                    self.store.rounds[index] = updatedRound
+                    self.store.saveRounds()
+                }
+            }
+        )
+    }
+
+    private func distanceToTarget(_ target: CLLocationCoordinate2D) -> Int? {
+        guard let userLocation = locationManager.location else { return nil }
+
+        let targetLocation = CLLocation(
+            latitude: target.latitude,
+            longitude: target.longitude
+        )
+
+        let distanceInMeters = userLocation.distance(from: targetLocation)
+        return Int(distanceInMeters * 1.09361) // Convert to yards
+    }
+
+    // Calculate the rotation angle for the aim arrow
+    private var aimArrowRotation: Double {
+        guard let capturedHeading = trajectoryHeading,
+              let userLocation = locationManager.location,
+              let hole = currentHole else {
+            return 0 // Arrow points up when not set
+        }
+
+        // Calculate bearing to hole
+        let bearingToHole = calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
+
+        // Calculate offset: how much the aim direction differs from hole bearing
+        let offset = (capturedHeading - bearingToHole + 360).truncatingRemainder(dividingBy: 360)
+
+        // Convert to -180 to 180 range for cleaner display
+        let normalizedOffset = offset > 180 ? offset - 360 : offset
+
+        return normalizedOffset
+    }
+
     private var floatingStrokeButton: some View {
         Image(systemName: "plus")
             .font(.title2)
             .fontWeight(.semibold)
             .foregroundColor(.white)
             .frame(width: 60, height: 60)
-            .background(.green)
+            .background(Color.green.opacity(0.95))
             .clipShape(Circle())
             .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-            .opacity((locationManager.location == nil || activeRound == nil) ? 0.5 : 1.0)
+            .opacity((locationManager.location == nil || activeRound == nil) ? 0.5 : 0.95)
     }
 
     private var floatingDetailsButton: some View {
@@ -230,6 +312,10 @@ struct HolePlayView: View {
                     heading: locationManager.heading,
                     useStandardMap: useStandardMap,
                     position: $position,
+                    targetCoordinates: targetCoordinatesBinding,
+                    isPlacingTarget: $isPlacingTarget,
+                    isDeleting: $isDeleting,
+                    distanceToTarget: distanceToTarget,
                     onHoleTap: {
                         saveCurrentMapRegion()
                         temporaryPosition = hole.coordinate
@@ -382,9 +468,7 @@ struct HolePlayView: View {
             updateMapPosition()
         }
         .onChange(of: locationManager.location) { _, _ in
-            if isAddingHole {
-                updateAddHoleMapPosition()
-            }
+            // Don't auto-update map when adding hole - let user pan freely
         }
         .onChange(of: isAddingHole) { _, newValue in
             if newValue {
@@ -439,75 +523,93 @@ struct HolePlayView: View {
     }
 
     private func previousHole() {
+        guard let round = activeRound else { return }
         if currentHoleIndex > 0 {
             currentHoleIndex -= 1
-            syncCurrentHoleIndex()
+            store.updateCurrentHoleIndex(for: round, newIndex: currentHoleIndex)
         }
     }
 
     private func nextHole() {
+        guard let round = activeRound else { return }
         if currentHoleIndex < currentCourse.holes.count - 1 {
             currentHoleIndex += 1
-            syncCurrentHoleIndex()
+            store.updateCurrentHoleIndex(for: round, newIndex: currentHoleIndex)
         }
     }
 
     private func finishCurrentHole() {
         guard let round = activeRound,
-              let hole = currentHole,
-              let roundIndex = store.rounds.firstIndex(where: { $0.id == round.id }) else { return }
+              let hole = currentHole else { return }
 
         // Mark hole as completed
-        store.rounds[roundIndex].completedHoles.insert(hole.number)
+        store.completeHole(in: round, holeNumber: hole.number)
 
         // Auto-advance to next hole if available, or start adding a new hole
         if currentHoleIndex < currentCourse.holes.count - 1 {
             currentHoleIndex += 1
+            store.updateCurrentHoleIndex(for: round, newIndex: currentHoleIndex)
         } else {
             // No more holes, start adding a new one
             isAddingHole = true
         }
-
-        // Update current hole index in round
-        store.rounds[roundIndex].currentHoleIndex = currentHoleIndex
-        store.saveRounds()
-
-        // Send updated round to Watch
-        WatchConnectivityManager.shared.sendRound(store.rounds[roundIndex])
-    }
-
-    private func syncCurrentHoleIndex() {
-        guard let round = activeRound,
-              let roundIndex = store.rounds.firstIndex(where: { $0.id == round.id }) else { return }
-
-        // Update current hole index in round
-        store.rounds[roundIndex].currentHoleIndex = currentHoleIndex
-        store.saveRounds()
-
-        // Send updated round to Watch
-        WatchConnectivityManager.shared.sendRound(store.rounds[roundIndex])
     }
 
     private func reopenCurrentHole() {
         guard let round = activeRound,
-              let hole = currentHole,
-              let roundIndex = store.rounds.firstIndex(where: { $0.id == round.id }) else { return }
+              let hole = currentHole else { return }
 
         // Remove hole from completed set
-        store.rounds[roundIndex].completedHoles.remove(hole.number)
-        store.saveRounds()
+        store.reopenHole(in: round, holeNumber: hole.number)
+    }
+
+    private func captureAimDirection() {
+        var heading: Double?
+
+        // Try to get real heading first
+        if let realHeading = locationManager.heading {
+            heading = realHeading
+        } else if let userLocation = locationManager.location,
+                  let hole = currentHole {
+            // Fallback: Use bearing to hole + 45 degrees as simulated offset
+            let bearingToHole = calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
+            heading = (bearingToHole + 45).truncatingRemainder(dividingBy: 360)
+        }
+
+        guard let finalHeading = heading else { return }
+
+        // Capture the current heading
+        trajectoryHeading = finalHeading
+    }
+
+    private func toggleTargetPlacement() {
+        isPlacingTarget.toggle()
     }
 
     private func undoLastAction() {
-        guard let round = activeRound,
-              let hole = currentHole else { return }
+        guard let round = activeRound else { return }
 
-        // If there are strokes, delete the last one
+        // Check if current hole is completed - if so, undo the completion first
+        if let currentHole = currentHole, currentRound?.isHoleCompleted(currentHole.number) == true {
+            store.reopenHole(in: round, holeNumber: currentHole.number)
+            return
+        }
+
+        // If there are strokes on current hole, delete the last one
         if let lastStroke = strokesForCurrentHole.last {
             store.deleteStroke(in: round, stroke: lastStroke)
-        } else if currentRound?.isHoleCompleted(hole.number) == true {
-            // No strokes but hole is completed, reopen it
-            reopenCurrentHole()
+        } else if currentHoleIndex > 0 {
+            // No strokes on current hole - check if we just finished the previous hole
+            // Only undo if: we're on a hole with no strokes AND the immediately previous hole is completed
+            let previousHoleIdx = currentHoleIndex - 1
+            let previousHoleNumber = currentCourse.holes[previousHoleIdx].number
+
+            if currentRound?.isHoleCompleted(previousHoleNumber) == true {
+                // Undo the hole completion and go back to previous hole
+                store.reopenHole(in: round, holeNumber: previousHoleNumber)
+                currentHoleIndex = previousHoleIdx
+                store.updateCurrentHoleIndex(for: round, newIndex: currentHoleIndex)
+            }
         }
     }
 
@@ -577,7 +679,10 @@ struct HolePlayView: View {
         guard let round = activeRound,
               let hole = currentHole,
               let location = locationManager.location else { return }
-        store.addStroke(to: round, holeNumber: hole.number, coordinate: location.coordinate, club: club, trajectoryHeading: nil)
+        store.addStroke(to: round, holeNumber: hole.number, coordinate: location.coordinate, club: club, trajectoryHeading: trajectoryHeading)
+
+        // Reset aim direction after recording stroke
+        trajectoryHeading = nil
     }
 
     private func startAddingNextHole() {
@@ -619,7 +724,7 @@ struct HolePlayView: View {
     @ViewBuilder
     private func floatingButtons() -> some View {
         ZStack {
-            // Right side buttons
+            // Right side buttons (bottom to top: stroke, penalty, finish)
             VStack {
                 Spacer()
                 VStack(spacing: 12) {
@@ -630,12 +735,12 @@ struct HolePlayView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                             .frame(width: 60, height: 60)
-                            .background(.yellow)
+                            .background(Color.yellow.opacity(0.95))
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
                     .disabled(activeRound == nil || isCurrentHoleCompleted)
-                    .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 1.0)
+                    .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 0.95)
 
                     // Orange button for penalty stroke
                     Button(action: {
@@ -647,12 +752,12 @@ struct HolePlayView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                             .frame(width: 60, height: 60)
-                            .background(.orange)
+                            .background(Color.orange.opacity(0.95))
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
                     .disabled(activeRound == nil || isCurrentHoleCompleted)
-                    .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 1.0)
+                    .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 0.95)
 
                     // Green button for new stroke (bottom)
                     Button(action: {
@@ -664,26 +769,76 @@ struct HolePlayView: View {
                     .opacity((locationManager.location == nil || activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 1.0)
                 }
                 .padding(.trailing, 20)
-                .padding(.bottom, 150)
+                .padding(.bottom, 200)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
-            // Left side undo button
+            // Left side buttons (bottom to top: undo, aim direction, target)
             VStack {
                 Spacer()
-                Button(action: undoLastAction) {
-                    Image(systemName: "arrow.uturn.backward.circle.fill")
-                        .font(.title)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.orange)
-                        .frame(width: 60, height: 60)
-                        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                HStack {
+                    VStack(spacing: 12) {
+                        // Target button (top)
+                        Button(action: toggleTargetPlacement) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.95))
+                                    .frame(width: 60, height: 60)
+                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+
+                                if isPlacingTarget {
+                                    Circle()
+                                        .stroke(Color.yellow, lineWidth: 4)
+                                        .frame(width: 60, height: 60)
+                                }
+
+                                Image(systemName: "scope")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.black)
+                            }
+                        }
+
+                        // Blue button for aim direction
+                        Button(action: captureAimDirection) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.95))
+                                    .frame(width: 60, height: 60)
+                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+
+                                Image(systemName: "location.north.fill")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .rotationEffect(.degrees(aimArrowRotation))
+                            }
+                        }
+                        .disabled(activeRound == nil || isCurrentHoleCompleted)
+                        .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 0.95)
+
+                        // Undo button (bottom)
+                        Button(action: undoLastAction) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.red.opacity(0.95))
+                                    .frame(width: 60, height: 60)
+                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+
+                                Image(systemName: "arrow.uturn.backward")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .disabled(!canUndo)
+                        .opacity(canUndo ? 0.95 : 0.9)
+                    }
+                    .padding(.leading, 20)
+
+                    Spacer()
                 }
-                .disabled(activeRound == nil || strokesForCurrentHole.isEmpty)
-                .opacity((activeRound == nil || strokesForCurrentHole.isEmpty) ? 0.3 : 1.0)
-                .padding(.leading, 20)
-                .padding(.bottom, 150)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 200)
             }
         }
     }
@@ -721,11 +876,15 @@ struct HolePlayView: View {
             if forceUserHoleView {
                 // User has toggled to force user/hole view
                 startCoord = userCoord
-            } else if distanceToHole > maxDistance, let teeCoord = hole.teeCoordinate {
-                // User is far from hole, use tee marker as starting point
-                startCoord = teeCoord
+            } else if let teeCoord = hole.teeCoordinate {
+                // Tee exists - use it if user is far away
+                if distanceToHole > maxDistance {
+                    startCoord = teeCoord
+                } else {
+                    startCoord = userCoord
+                }
             } else {
-                // User is near hole or no tee marker, use user position
+                // No tee marker - ALWAYS show user-to-hole view (user at bottom, hole at top)
                 startCoord = userCoord
             }
 
@@ -752,8 +911,29 @@ struct HolePlayView: View {
             )
 
             position = .camera(camera)
+        } else if let teeCoord = hole.teeCoordinate {
+            // No user location but tee exists - show tee to hole view
+            let holeCoord = hole.coordinate
+            let bearing = calculateBearing(from: teeCoord, to: holeCoord)
+            let teeLocation = CLLocation(latitude: teeCoord.latitude, longitude: teeCoord.longitude)
+            let holeLocation = CLLocation(latitude: holeCoord.latitude, longitude: holeCoord.longitude)
+            let distance = max(teeLocation.distance(from: holeLocation), 40.0)
+
+            let spanInMeters = max(distance * 1.8, 40.0)
+            let centerLat = (holeCoord.latitude + teeCoord.latitude) / 2.0
+            let centerLon = (holeCoord.longitude + teeCoord.longitude) / 2.0
+            let center = CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon)
+
+            let camera = MapCamera(
+                centerCoordinate: center,
+                distance: spanInMeters * 2.2,
+                heading: bearing,
+                pitch: 0
+            )
+
+            position = .camera(camera)
         } else {
-            // Just center on the hole
+            // No user location and no tee - just center on the hole
             position = .region(MKCoordinateRegion(
                 center: hole.coordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.0005, longitudeDelta: 0.0005)

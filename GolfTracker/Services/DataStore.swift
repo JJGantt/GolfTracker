@@ -420,4 +420,36 @@ class DataStore: ObservableObject {
 
         saveRounds()
     }
+
+    // MARK: - Round State Management (with automatic sync)
+
+    func updateCurrentHoleIndex(for round: Round, newIndex: Int) {
+        guard let roundIndex = rounds.firstIndex(where: { $0.id == round.id }) else { return }
+
+        rounds[roundIndex].currentHoleIndex = newIndex
+        saveRounds()
+
+        // Sync to Watch
+        WatchConnectivityManager.shared.sendRound(rounds[roundIndex])
+    }
+
+    func completeHole(in round: Round, holeNumber: Int) {
+        guard let roundIndex = rounds.firstIndex(where: { $0.id == round.id }) else { return }
+
+        rounds[roundIndex].completedHoles.insert(holeNumber)
+        saveRounds()
+
+        // Sync to Watch
+        WatchConnectivityManager.shared.sendRound(rounds[roundIndex])
+    }
+
+    func reopenHole(in round: Round, holeNumber: Int) {
+        guard let roundIndex = rounds.firstIndex(where: { $0.id == round.id }) else { return }
+
+        rounds[roundIndex].completedHoles.remove(holeNumber)
+        saveRounds()
+
+        // Sync to Watch
+        WatchConnectivityManager.shared.sendRound(rounds[roundIndex])
+    }
 }

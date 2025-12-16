@@ -168,6 +168,23 @@ struct Stroke: Identifiable, Codable, Hashable {
     }
 }
 
+struct Target: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var holeNumber: Int
+    var latitude: Double
+    var longitude: Double
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    init(holeNumber: Int, coordinate: CLLocationCoordinate2D) {
+        self.holeNumber = holeNumber
+        self.latitude = coordinate.latitude
+        self.longitude = coordinate.longitude
+    }
+}
+
 struct Round: Identifiable, Codable, Hashable {
     var id = UUID()
     var courseId: UUID
@@ -177,6 +194,7 @@ struct Round: Identifiable, Codable, Hashable {
     var holes: [Hole] // Course holes for Watch sync
     var completedHoles: Set<Int> // Hole numbers that have been finished
     var currentHoleIndex: Int // Current hole being played (synced between devices)
+    var targets: [Target] // Target markers placed on the map (synced between devices)
 
     init(courseId: UUID, courseName: String, holes: [Hole] = []) {
         self.courseId = courseId
@@ -186,6 +204,7 @@ struct Round: Identifiable, Codable, Hashable {
         self.holes = holes
         self.completedHoles = []
         self.currentHoleIndex = 0
+        self.targets = []
     }
 
     func isHoleCompleted(_ holeNumber: Int) -> Bool {

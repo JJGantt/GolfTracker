@@ -8,6 +8,10 @@ struct HoleMapView: View {
     let heading: CLLocationDirection?
     let useStandardMap: Bool
     @Binding var position: MapCameraPosition
+    @Binding var targetCoordinates: [CLLocationCoordinate2D]
+    @Binding var isPlacingTarget: Bool
+    @Binding var isDeleting: Bool
+    let distanceToTarget: (CLLocationCoordinate2D) -> Int?
 
     let onHoleTap: () -> Void
     let onTeeTap: () -> Void
@@ -86,12 +90,64 @@ struct HoleMapView: View {
                         UserLocationMarker(heading: heading)
                     }
                 }
+
+                // Target markers
+                ForEach(Array(targetCoordinates.enumerated()), id: \.offset) { index, target in
+                    Annotation("", coordinate: target) {
+                        ZStack {
+                            Image(systemName: "scope")
+                                .font(.system(size: 32))
+                                .foregroundColor(.white)
+                                .shadow(color: .black, radius: 2)
+
+                            if let distance = distanceToTarget(target) {
+                                VStack {
+                                    Spacer()
+                                    Text("\(distance)")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .background(Color.white.opacity(0.9))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        .offset(y: 24) // Position below the scope icon
+                                }
+                                .frame(height: 32)
+                            }
+                        }
+                        .frame(width: 32, height: 32)
+                        .onTapGesture {
+                            if isPlacingTarget {
+                                // Remove the target immediately
+                                targetCoordinates.remove(at: index)
+                                // Set flag to block the map tap that will fire immediately after
+                                isDeleting = true
+                                // Reset the flag on the next run loop so future taps work normally
+                                DispatchQueue.main.async {
+                                    isDeleting = false
+                                }
+                            }
+                        }
+                    }
+                }
             }
             .mapStyle(useStandardMap ? .standard : .hybrid)
             .mapControls {
                 MapUserLocationButton()
-                MapCompass()
                 MapScaleView()
+            }
+            .onTapGesture { screenLocation in
+                guard isPlacingTarget else { return }
+
+                // If we just deleted a target, skip placing a new one
+                if isDeleting {
+                    return
+                }
+
+                guard let coordinate = proxy.convert(screenLocation, from: .local) else { return }
+
+                // Add new target
+                targetCoordinates.append(coordinate)
             }
         }
     }

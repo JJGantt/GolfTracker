@@ -35,10 +35,15 @@ class LocationManager: NSObject, ObservableObject {
         let isAuthorized = authorizationStatus == .authorizedAlways
         #endif
 
+        print("[LocationManager] startTracking called - isAuthorized: \(isAuthorized), status: \(authorizationStatus.rawValue)")
+
         guard isAuthorized else {
             errorMessage = "Location permission not granted"
+            print("[LocationManager] NOT authorized, skipping location updates")
             return
         }
+
+        print("[LocationManager] Starting location updates")
         locationManager.startUpdatingLocation()
 
         #if os(iOS) || os(watchOS)
@@ -82,6 +87,7 @@ class LocationManager: NSObject, ObservableObject {
 extension LocationManager: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
+        print("[LocationManager] Authorization changed to: \(authorizationStatus.rawValue)")
 
         #if os(iOS) || os(watchOS)
         let authorized = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
@@ -90,14 +96,17 @@ extension LocationManager: CLLocationManagerDelegate {
         #endif
 
         if authorized {
+            print("[LocationManager] Authorization granted, starting location tracking")
             startTracking()
         } else if authorizationStatus == .denied || authorizationStatus == .restricted {
+            print("[LocationManager] Authorization denied or restricted")
             errorMessage = "Location access denied. Please enable in Settings."
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let newLocation = locations.last else { return }
+        print("[LocationManager] Got location update: \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
         location = newLocation
         errorMessage = nil
     }
