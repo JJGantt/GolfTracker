@@ -15,6 +15,7 @@ struct ActiveRoundView: View {
     @State private var showingEditHole = false
     @State private var showingAddHole = false
     @FocusState private var isMapFocused: Bool
+    @FocusState private var isMainViewFocused: Bool
 
     private let clubs = Club.allCases
 
@@ -125,6 +126,7 @@ struct ActiveRoundView: View {
             .padding(.trailing, 2)
             Spacer()
         }
+        .opacity(isPlacingTarget ? 0 : 1)
     }
 
     @ViewBuilder
@@ -171,7 +173,7 @@ struct ActiveRoundView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     .disabled(store.isHoleCompleted(hole.number))
-                    .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
+                    .opacity(store.isHoleCompleted(hole.number) || isPlacingTarget ? 0 : 0.95)
                 }
 
                 Spacer()
@@ -276,8 +278,8 @@ struct ActiveRoundView: View {
                     // Separate strokes container
                     Text("S: \(store.strokeCount(for: hole))")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(8)
+                        .foregroundColor(Color(red: 0.55, green: 0.85, blue: 0.55))
+                        .padding(4)
                         .background(Color.black.opacity(0.4))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .fixedSize()
@@ -289,6 +291,7 @@ struct ActiveRoundView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .ignoresSafeArea()
+        .opacity(isPlacingTarget ? 0 : 1)
     }
 
     private var aimArrowRotation: Double {
@@ -348,7 +351,16 @@ struct ActiveRoundView: View {
             mainContent(geometry: geometry)
         }
         .focusable()
-        .digitalCrownRotation($selectedClubIndex, from: 0, through: Double(clubs.count - 1), by: 1, sensitivity: .low)
+        .focused($isMainViewFocused)
+        .digitalCrownRotation(
+            $selectedClubIndex,
+            from: 0,
+            through: Double(clubs.count - 1),
+            by: 1,
+            sensitivity: .low,
+            isContinuous: false,
+            isHapticFeedbackEnabled: true
+        )
         .sheet(isPresented: $showingActionsSheet) {
             actionsSheet
         }
@@ -368,9 +380,15 @@ struct ActiveRoundView: View {
             locationManager.startTracking()
             print("⌚ [ActiveRoundView] Called requestPermission and startTracking")
             updateMapPosition()
+            // Set focus to main view for crown control
+            isMainViewFocused = true
         }
         .onChange(of: locationManager.location) { _, _ in
             // Trigger view refresh when location updates (for distance display)
+            // Also update map orientation to keep user at bottom, flag at top
+            if !isPlacingTarget {
+                updateMapPosition()
+            }
         }
         .onChange(of: store.currentHoleIndex) { _, _ in
             // Watch syncs hole index from phone - update map when it changes
@@ -724,9 +742,14 @@ struct ActiveRoundView: View {
         // When exiting target mode, reposition map
         if !isPlacingTarget {
             isMapFocused = false
-            updateMapPosition()
+            isMainViewFocused = true
+            // Force immediate map update when exiting target mode
+            DispatchQueue.main.async {
+                updateMapPosition()
+            }
         } else {
             isMapFocused = true
+            isMainViewFocused = false
         }
     }
 
