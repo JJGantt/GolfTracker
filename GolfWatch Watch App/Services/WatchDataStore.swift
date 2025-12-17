@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import CoreLocation
 
 class WatchDataStore: ObservableObject {
     static let shared = WatchDataStore()
@@ -238,6 +239,93 @@ class WatchDataStore: ObservableObject {
 
     func isHoleCompleted(_ holeNumber: Int) -> Bool {
         return currentRound?.isHoleCompleted(holeNumber) ?? false
+    }
+
+    // MARK: - Hole Management
+
+    func addHole(coordinate: CLLocationCoordinate2D) {
+        guard var round = currentRound else { return }
+
+        // Get current course to determine next hole number
+        let course = getCourse(for: round)
+        let nextHoleNumber = (course?.holes.count ?? 0) + 1
+
+        // Create new hole
+        let newHole = Hole(
+            number: nextHoleNumber,
+            coordinate: coordinate,
+            yards: nil,
+            par: nil,
+            teeCoordinate: nil
+        )
+
+        // Add hole to round's holes array
+        round.holes.append(newHole)
+
+        // Update hole index in the round
+        round.currentHoleIndex = nextHoleNumber - 1
+
+        // Update local state
+        currentRound = round
+        currentHoleIndex = nextHoleNumber - 1
+
+        // Save and sync - send everything together in ONE update
+        saveToStorage()
+        WatchConnectivityManager.shared.sendRound(round)
+
+        print("⌚ [WatchDataStore] Added hole \(nextHoleNumber) and navigated to it")
+    }
+
+    func updateHole(holeNumber: Int, newCoordinate: CLLocationCoordinate2D) {
+        guard var round = currentRound else { return }
+
+        // Find and update the hole in the round's holes array
+        guard let holeIndex = round.holes.firstIndex(where: { $0.number == holeNumber }) else { return }
+
+        round.holes[holeIndex].latitude = newCoordinate.latitude
+        round.holes[holeIndex].longitude = newCoordinate.longitude
+
+        // Update local state
+        currentRound = round
+
+        // Save and sync
+        saveToStorage()
+        WatchConnectivityManager.shared.sendRound(round)
+
+        print("⌚ [WatchDataStore] Updated hole \(holeNumber) location")
+    }
+
+    func navigateToNextHole() {
+        guard var round = currentRound else { return }
+        guard let course = getCourse(for: round) else { return }
+
+        let nextIndex = currentHoleIndex + 1
+        guard nextIndex < course.holes.count else { return }
+
+        currentHoleIndex = nextIndex
+        round.currentHoleIndex = nextIndex
+        currentRound = round
+
+        saveToStorage()
+        WatchConnectivityManager.shared.sendRound(round)
+
+        print("⌚ [WatchDataStore] Navigated to hole \(nextIndex + 1)")
+    }
+
+    func navigateToPreviousHole() {
+        guard var round = currentRound else { return }
+
+        let prevIndex = currentHoleIndex - 1
+        guard prevIndex >= 0 else { return }
+
+        currentHoleIndex = prevIndex
+        round.currentHoleIndex = prevIndex
+        currentRound = round
+
+        saveToStorage()
+        WatchConnectivityManager.shared.sendRound(round)
+
+        print("⌚ [WatchDataStore] Navigated to hole \(prevIndex + 1)")
     }
 
     // MARK: - Helpers

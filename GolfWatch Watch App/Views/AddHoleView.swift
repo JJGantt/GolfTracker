@@ -1,0 +1,140 @@
+import SwiftUI
+import MapKit
+
+struct AddHoleView: View {
+    @ObservedObject var store: WatchDataStore
+    let locationManager: LocationManager
+    @Binding var isPresented: Bool
+
+    @State private var position: MapCameraPosition = .automatic
+    @State private var temporaryHolePosition: CLLocationCoordinate2D?
+    @FocusState private var isMapFocused: Bool
+    @State private var shouldMaintainFocus = true
+
+    private var nextHoleNumber: Int {
+        guard let round = store.currentRound,
+              let course = store.getCourse(for: round) else { return 1 }
+        return course.holes.count + 1
+    }
+
+    var body: some View {
+        ZStack {
+            // Map layer
+            MapReader { proxy in
+                Map(position: $position) {
+                    // Show user location
+                    if let userLocation = locationManager.location {
+                        Annotation("", coordinate: userLocation.coordinate) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.blue)
+                                .shadow(color: .white, radius: 2)
+                        }
+                    }
+
+                    // Show temporary hole position
+                    if let holePos = temporaryHolePosition {
+                        Annotation("", coordinate: holePos) {
+                            Image(systemName: "flag.fill")
+                                .foregroundColor(.yellow)
+                                .font(.system(size: 24))
+                                .shadow(color: .black, radius: 2)
+                        }
+                    }
+                }
+                .mapStyle(.standard)
+                .mapControls {
+                    // Disable default map controls
+                }
+                .mapControlVisibility(.hidden)
+                .focusable()
+                .focused($isMapFocused)
+                .onTapGesture { screenCoord in
+                    if let coordinate = proxy.convert(screenCoord, from: .local) {
+                        temporaryHolePosition = coordinate
+                        WKInterfaceDevice.current().play(.click)
+                    }
+                }
+            }
+            .ignoresSafeArea()
+
+            // Overlay UI
+            VStack {
+                // Top hole number - center, ignoring safe area
+                Text("Hole \(nextHoleNumber)")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                Spacer()
+
+                // Save button - bottom right, only show when hole position is set
+                if temporaryHolePosition != nil {
+                    HStack {
+                        Spacer()
+
+                        Button(action: saveHole) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.95))
+                                    .frame(width: 50, height: 50)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.trailing, 6)
+                    .padding(.bottom, 16)
+                }
+            }
+            .ignoresSafeArea()
+        }
+        .onAppear {
+            // Focus the map immediately for crown zoom
+            isMapFocused = true
+
+            // Center map on user location
+            if let userLocation = locationManager.location {
+                let spanInMeters: CLLocationDistance = 320.0 // ~350 yards
+                let spanDegrees = spanInMeters / 111000.0
+
+                position = .region(MKCoordinateRegion(
+                    center: userLocation.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: spanDegrees, longitudeDelta: spanDegrees)
+                ))
+            }
+        }
+        .onChange(of: isMapFocused) { _, newValue in
+            // If focus is lost and we should maintain it, re-focus
+            if !newValue && shouldMaintainFocus {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    isMapFocused = true
+                }
+            }
+        }
+    }
+
+    private func saveHole() {
+        guard let coordinate = temporaryHolePosition else { return }
+
+        // Stop maintaining focus before dismissing
+        shouldMaintainFocus = false
+
+        // Add hole to course via store
+        store.addHole(coordinate: coordinate)
+
+        // Haptic feedback
+        WKInterfaceDevice.current().play(.success)
+
+        // Dismiss view
+        isPresented = false
+    }
+}

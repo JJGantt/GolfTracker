@@ -146,6 +146,9 @@ struct HolePlayView: View {
                 if let index = self.store.rounds.firstIndex(where: { $0.id == round.id }) {
                     self.store.rounds[index] = updatedRound
                     self.store.saveRounds()
+
+                    // Sync to Watch
+                    WatchConnectivityManager.shared.sendRound(updatedRound)
                 }
             }
         )
@@ -457,6 +460,11 @@ struct HolePlayView: View {
                 }
             }
 
+            // Sync current hole index to watch on initial load
+            if let round = activeRound {
+                store.updateCurrentHoleIndex(for: round, newIndex: currentHoleIndex)
+            }
+
             // Update map based on mode
             if isAddingHole {
                 updateAddHoleMapPosition()
@@ -475,6 +483,26 @@ struct HolePlayView: View {
                 updateAddHoleMapPosition()
             } else {
                 updateMapPosition()
+            }
+        }
+        .onChange(of: currentCourse.holes.count) { oldCount, newCount in
+            // If holes count increased, it came from watch - close add hole screen if open
+            if newCount > oldCount {
+                print("📱 [HolePlayView] New hole detected from watch (count: \(oldCount) -> \(newCount))")
+                if isAddingHole {
+                    print("📱 [HolePlayView] Closing add hole screen, navigating to new hole")
+                    isAddingHole = false
+                    // Update to the new hole index
+                    currentHoleIndex = newCount - 1
+                }
+            }
+        }
+        .onChange(of: currentHole) { oldHole, newHole in
+            // If we're in add hole mode but now have a valid hole, close add hole screen
+            // This handles watch navigation or watch creating a hole
+            if isAddingHole && newHole != nil {
+                print("📱 [HolePlayView] Valid hole now exists, closing add hole screen")
+                isAddingHole = false
             }
         }
         // --- Begin new onChange blocks for edit modes ---
