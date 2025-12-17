@@ -12,6 +12,9 @@ struct ActiveRoundView: View {
     @State private var isPlacingTarget = false
     @State private var isDeleting = false
     @State private var showingActionsSheet = false
+    @State private var showingEditHole = false
+    @State private var showingAddHole = false
+    @FocusState private var isMapFocused: Bool
 
     private let clubs = Club.allCases
 
@@ -104,6 +107,190 @@ struct ActiveRoundView: View {
     }
 
     // Calculate the rotation angle for the aim arrow
+    @ViewBuilder
+    private func clubSelectorOverlay(clubFontSize: CGFloat) -> some View {
+        VStack {
+            Spacer()
+                .frame(height: crownOffset)
+            HStack {
+                Spacer()
+                Text(selectedClub.rawValue)
+                    .font(.system(size: clubFontSize, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+            .padding(.trailing, 2)
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func buttonsOverlay(buttonSize: CGFloat, iconSize: CGFloat, hole: Hole) -> some View {
+        VStack {
+            Spacer()
+
+            HStack(alignment: .bottom, spacing: 4) {
+                // Left: Stack of buttons (bottom to top: penalty, target)
+                VStack(spacing: 4) {
+                    // Target button (top)
+                    Button(action: toggleTargetPlacement) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.95))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+
+                            if isPlacingTarget {
+                                Circle()
+                                    .stroke(Color.yellow, lineWidth: 3)
+                                    .frame(width: buttonSize, height: buttonSize)
+                            }
+
+                            Image(systemName: "scope")
+                                .font(.system(size: iconSize, weight: .bold))
+                                .foregroundColor(.black)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    // Orange penalty button (bottom)
+                    Button(action: addPenaltyStroke) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.95))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: iconSize, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(store.isHoleCompleted(hole.number))
+                    .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
+                }
+
+                Spacer()
+
+                // Right: Stack of buttons (bottom to top: shot, direction)
+                VStack(spacing: 4) {
+                    // Blue aim direction button (top)
+                    Button(action: captureAimDirection) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.95))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: iconSize, weight: .bold))
+                                .foregroundColor(.white)
+                                .rotationEffect(.degrees(aimArrowRotation))
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(store.isHoleCompleted(hole.number))
+                    .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
+
+                    // Green stroke button (bottom)
+                    Button(action: recordStroke) {
+                        ZStack {
+                            Circle()
+                                .fill(showingRecordedFeedback ? Color.white.opacity(0.95) : Color.green.opacity(0.95))
+                                .frame(width: buttonSize, height: buttonSize)
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+
+                            Image(systemName: showingRecordedFeedback ? "checkmark" : "plus")
+                                .font(.system(size: iconSize, weight: .bold))
+                                .foregroundColor(showingRecordedFeedback ? .green : .white)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .handGestureShortcut(.primaryAction)
+                    .disabled(store.isHoleCompleted(hole.number))
+                    .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
+                }
+                .opacity(isPlacingTarget ? 0 : 1)
+            }
+            .padding(.horizontal, 4)
+            .padding(.bottom, 16)
+        }
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private var swipeUpIndicator: some View {
+        VStack {
+            Spacer()
+
+            HStack {
+                Spacer()
+
+                // Swipe indicator pill
+                RoundedRectangle(cornerRadius: 2.5)
+                    .fill(Color.white.opacity(0.5))
+                    .frame(width: 30, height: 5)
+                    .padding(.bottom, 4)
+                    .onTapGesture {
+                        showingActionsSheet = true
+                    }
+
+                Spacer()
+            }
+        }
+        .ignoresSafeArea()
+        .opacity(isPlacingTarget ? 0 : 1)
+    }
+
+    @ViewBuilder
+    private var holeInfoOverlay: some View {
+        VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 4) {
+                if let hole = store.currentHole {
+                    let parText = hole.par.map { String($0) } ?? "-"
+
+                    // Main container: Yards + H/P row
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(distanceToHole.map { String($0) } ?? "XXX")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+
+                        HStack(spacing: 8) {
+                            Text("H: \(hole.number)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("P: \(parText)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .fixedSize()
+
+                    // Separate strokes container
+                    Text("S: \(store.strokeCount(for: hole))")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.black.opacity(0.4))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .fixedSize()
+                }
+            }
+            .padding(.leading, 6)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ignoresSafeArea()
+    }
+
     private var aimArrowRotation: Double {
         guard let capturedHeading = capturedAimDirection,
               let userLocation = locationManager.location,
@@ -124,193 +311,54 @@ struct ActiveRoundView: View {
         return normalizedOffset
     }
 
+    @ViewBuilder
+    private func mainContent(geometry: GeometryProxy) -> some View {
+        let buttonSize = geometry.size.width * 0.25
+        let iconSize = buttonSize * 0.45
+        let clubFontSize = geometry.size.width * 0.065
+
+        ZStack {
+            // Full screen map
+            if let hole = store.currentHole {
+                mapView(for: hole)
+                    .ignoresSafeArea()
+            }
+
+            // Club selector overlay (positioned at crown height)
+            clubSelectorOverlay(clubFontSize: clubFontSize)
+
+            // Info overlay (top left) - distance and hole info
+            holeInfoOverlay
+
+            // Buttons overlay (bottom)
+            if let hole = store.currentHole {
+                buttonsOverlay(buttonSize: buttonSize, iconSize: iconSize, hole: hole)
+            }
+
+            // Bottom swipe-up indicator
+            swipeUpIndicator
+        }
+        .task {
+            calculateCrownOffset(screenHeight: geometry.size.height)
+        }
+    }
+
     var body: some View {
         GeometryReader { geometry in
-            let buttonSize = geometry.size.width * 0.25  // All buttons: 25% of screen width
-            let iconSize = buttonSize * 0.45
-
-            // Relative text sizes based on screen width
-            let distanceFontSize = geometry.size.width * 0.12  // Distance number: 12% of width (~22pt on 44mm)
-            let holeInfoFontSize = geometry.size.width * 0.055  // Hole info: 5.5% of width (~10pt on 44mm)
-            let clubFontSize = geometry.size.width * 0.05  // Club selector: 5% of width
-
-            ZStack {
-                // Full screen map
-                if let hole = store.currentHole {
-                    mapView(for: hole)
-                        .ignoresSafeArea()
-                }
-
-                // Club selector overlay (positioned at crown height)
-                VStack {
-                    Spacer()
-                        .frame(height: crownOffset)
-                    HStack {
-                        Spacer()
-                        Text(selectedClub.rawValue)
-                            .font(.system(size: clubFontSize, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.black.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                    }
-                    .padding(.trailing, 2)
-                    Spacer()
-                }
-
-                // Info overlay (top left) - unified distance and hole info
-                VStack {
-                    HStack(alignment: .top) {
-                        if let hole = store.currentHole {
-                            VStack(alignment: .leading, spacing: 4) {
-                                // Distance - always show, use "XXX" if not available
-                                Text(distanceToHole.map { String($0) } ?? "XXX")
-                                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-
-                                // Hole info
-                                let parText = hole.par.map { String($0) } ?? "-"
-                                Text("H:\(hole.number)  P:\(parText)  S:\(store.strokeCount(for: hole))")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(8)
-                            .background(Color.black.opacity(0.25))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .fixedSize()
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.leading, 6)
-
-                    Spacer()
-                }
-                .ignoresSafeArea()
-
-                // Buttons overlay (bottom)
-                VStack {
-                    Spacer()
-
-                    if let hole = store.currentHole {
-                        HStack(alignment: .bottom, spacing: 4) {
-                            // Left: Stack of buttons (bottom to top: penalty, target)
-                            VStack(spacing: 4) {
-                                // Target button (top)
-                                Button(action: toggleTargetPlacement) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.white.opacity(0.95))
-                                            .frame(width: buttonSize, height: buttonSize)
-                                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-
-                                        if isPlacingTarget {
-                                            Circle()
-                                                .stroke(Color.yellow, lineWidth: 3)
-                                                .frame(width: buttonSize, height: buttonSize)
-                                        }
-
-                                        Image(systemName: "scope")
-                                            .font(.system(size: iconSize, weight: .bold))
-                                            .foregroundColor(.black)
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-
-                                // Orange penalty button (bottom)
-                                Button(action: addPenaltyStroke) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.orange.opacity(0.95))
-                                            .frame(width: buttonSize, height: buttonSize)
-                                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .font(.system(size: iconSize, weight: .bold))
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                .disabled(store.isHoleCompleted(hole.number))
-                                .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
-                            }
-
-                            Spacer()
-
-                            // Right: Stack of buttons (bottom to top: shot, direction)
-                            VStack(spacing: 4) {
-                                // Blue aim direction button (top)
-                                Button(action: captureAimDirection) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.blue.opacity(0.95))
-                                            .frame(width: buttonSize, height: buttonSize)
-                                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-
-                                        Image(systemName: "location.north.fill")
-                                            .font(.system(size: iconSize, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .rotationEffect(.degrees(aimArrowRotation))
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                .disabled(store.isHoleCompleted(hole.number))
-                                .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
-
-                                // Green stroke button (bottom)
-                                Button(action: recordStroke) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(showingRecordedFeedback ? Color.white.opacity(0.95) : Color.green.opacity(0.95))
-                                            .frame(width: buttonSize, height: buttonSize)
-                                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-
-                                        Image(systemName: showingRecordedFeedback ? "checkmark" : "plus")
-                                            .font(.system(size: iconSize, weight: .bold))
-                                            .foregroundColor(showingRecordedFeedback ? .green : .white)
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                .disabled(store.isHoleCompleted(hole.number))
-                                .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
-                            }
-                        }
-                        .padding(.horizontal, 4)
-                        .padding(.bottom, 16)
-                    }
-                }
-                .ignoresSafeArea()
-
-                // Bottom swipe-up indicator
-                VStack {
-                    Spacer()
-
-                    HStack {
-                        Spacer()
-
-                        // Swipe indicator pill
-                        RoundedRectangle(cornerRadius: 2.5)
-                            .fill(Color.white.opacity(0.5))
-                            .frame(width: 30, height: 5)
-                            .padding(.bottom, 4)
-                            .onTapGesture {
-                                showingActionsSheet = true
-                            }
-
-                        Spacer()
-                    }
-                }
-                .ignoresSafeArea()
-            }
-            .task {
-                calculateCrownOffset(screenHeight: geometry.size.height)
-            }
+            mainContent(geometry: geometry)
         }
         .focusable()
         .digitalCrownRotation($selectedClubIndex, from: 0, through: Double(clubs.count - 1), by: 1, sensitivity: .low)
         .sheet(isPresented: $showingActionsSheet) {
             actionsSheet
+        }
+        .sheet(isPresented: $showingEditHole) {
+            if let hole = store.currentHole {
+                EditHoleView(store: store, locationManager: locationManager, hole: hole, isPresented: $showingEditHole)
+            }
+        }
+        .sheet(isPresented: $showingAddHole) {
+            AddHoleView(store: store, locationManager: locationManager, isPresented: $showingAddHole)
         }
         .onAppear {
             print("⌚ [ActiveRoundView] View appeared")
@@ -405,6 +453,9 @@ struct ActiveRoundView: View {
                 // Disable default map controls (including crown zoom and legal label)
             }
             .mapControlVisibility(.hidden) // Hide legal/attribution label
+            .allowsHitTesting(isPlacingTarget)
+            .focusable(isPlacingTarget)
+            .focused($isMapFocused)
             .onTapGesture { screenLocation in
                 guard isPlacingTarget else { return }
 
@@ -429,55 +480,130 @@ struct ActiveRoundView: View {
     @ViewBuilder
     private var actionsSheet: some View {
         VStack(spacing: 12) {
-            // Undo button
-            Button(action: {
-                deleteLastStroke()
-                showingActionsSheet = false
-            }) {
-                HStack {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 18, weight: .bold))
+            // Top row: Hole navigation
+            if let hole = store.currentHole, let round = store.currentRound, let course = store.getCourse(for: round) {
+                HStack(spacing: 12) {
+                    // Left arrow - previous hole
+                    Button(action: {
+                        store.navigateToPreviousHole()
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Color.blue.opacity(0.9))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(store.currentHoleIndex == 0)
+                    .opacity(store.currentHoleIndex == 0 ? 0.3 : 1.0)
+
+                    // Hole number
+                    Text("Hole \(hole.number)")
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                        .frame(width: 30)
+                        .frame(maxWidth: .infinity)
 
-                    Text("Undo Last Stroke")
-                        .font(.system(size: 14, weight: .semibold))
-
-                    Spacer()
+                    // Right arrow or plus - next hole or add hole
+                    if store.currentHoleIndex < course.holes.count - 1 {
+                        // Next hole exists - show right arrow
+                        Button(action: {
+                            store.navigateToNextHole()
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Color.blue.opacity(0.9))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    } else {
+                        // Last hole - show plus to add new hole
+                        Button(action: {
+                            showingActionsSheet = false
+                            showingAddHole = true
+                        }) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Color.green.opacity(0.9))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.red.opacity(0.9))
-                .cornerRadius(8)
+                .padding(.horizontal, 8)
             }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(!canUndo)
-            .opacity(canUndo ? 1.0 : 0.5)
 
-            // Finish hole button
+            // Middle row: Undo and Edit buttons
+            HStack(spacing: 8) {
+                // Undo button
+                Button(action: {
+                    deleteLastStroke()
+                    showingActionsSheet = false
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Undo")
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.red.opacity(0.9))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(!canUndo)
+                .opacity(canUndo ? 1.0 : 0.5)
+
+                // Edit Hole button
+                Button(action: {
+                    showingActionsSheet = false
+                    showingEditHole = true
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16, weight: .bold))
+                        Text("Edit")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.orange.opacity(0.9))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal, 8)
+
+            // Bottom row: Finish Hole button
             Button(action: {
                 finishCurrentHole()
                 showingActionsSheet = false
             }) {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "flag.fill")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 30)
-
+                        .font(.system(size: 16, weight: .bold))
                     Text("Finish Hole")
-                        .font(.system(size: 14, weight: .semibold))
-
-                    Spacer()
+                        .font(.system(size: 13, weight: .semibold))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
                 .background(Color.yellow.opacity(0.9))
                 .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
             .disabled(store.currentHole.map { store.isHoleCompleted($0.number) } ?? true)
             .opacity((store.currentHole.map { store.isHoleCompleted($0.number) } ?? true) ? 0.5 : 1.0)
+            .padding(.horizontal, 8)
         }
         .padding()
     }
@@ -594,6 +720,14 @@ struct ActiveRoundView: View {
     private func toggleTargetPlacement() {
         isPlacingTarget.toggle()
         WKInterfaceDevice.current().play(.click)
+
+        // When exiting target mode, reposition map
+        if !isPlacingTarget {
+            isMapFocused = false
+            updateMapPosition()
+        } else {
+            isMapFocused = true
+        }
     }
 
     private func updateMapPosition() {

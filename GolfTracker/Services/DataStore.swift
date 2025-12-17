@@ -65,9 +65,18 @@ class DataStore: ObservableObject {
             return
         }
 
-        // Update completed holes and current hole index from Watch
+        // Update holes array, completed holes, current hole index, and targets from Watch
+        rounds[roundIndex].holes = watchRound.holes
         rounds[roundIndex].completedHoles = watchRound.completedHoles
         rounds[roundIndex].currentHoleIndex = watchRound.currentHoleIndex
+        rounds[roundIndex].targets = watchRound.targets
+
+        // Also update the course with the new holes
+        if let courseIndex = courses.firstIndex(where: { $0.id == watchRound.courseId }) {
+            courses[courseIndex].holes = watchRound.holes
+            saveCourses()
+        }
+
         saveRounds()
         print("📱 [DataStore] Updated round from Watch: \(watchRound.completedHoles.count) holes completed, current hole index: \(watchRound.currentHoleIndex)")
     }

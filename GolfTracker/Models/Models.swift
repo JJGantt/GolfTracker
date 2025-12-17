@@ -2,7 +2,8 @@ import Foundation
 import CoreLocation
 
 enum Club: String, Codable, CaseIterable {
-    case driver = "Driver"
+    case drive = "Drive"
+    case hybrid = "Hyb"
     case threeIron = "3i"
     case fourIron = "4i"
     case fiveIron = "5i"
@@ -10,10 +11,14 @@ enum Club: String, Codable, CaseIterable {
     case sevenIron = "7i"
     case eightIron = "8i"
     case nineIron = "9i"
+    case pitchingWedge = "PW"
+    case attackWedge = "A"
     case pitch = "Pitch"
-    case approach = "Approach"
-    case hybrid = "Hybrid"
-    case putter = "Putter"
+    case chip = "Chip"
+    case putter = "Put"
+    case sand = "Sand"
+    case partial = "Partial"
+    case punch = "Punch"
 }
 
 enum StrokeLength: Codable, CaseIterable {
