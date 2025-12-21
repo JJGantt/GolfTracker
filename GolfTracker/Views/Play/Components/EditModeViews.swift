@@ -259,7 +259,11 @@ struct MoveHoleManuallyOverlay: View {
                             .padding()
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(currentHole?.par == 3 ? .blue : .green)
+                        .tint(.green)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white, lineWidth: currentHole?.par == 3 ? 3 : 0)
+                        )
 
                         // Par 4 button
                         Button(action: { saveHoleLocation(par: 4) }) {
@@ -274,7 +278,11 @@ struct MoveHoleManuallyOverlay: View {
                             .padding()
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(currentHole?.par == 4 ? .blue : .green)
+                        .tint(.green)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white, lineWidth: currentHole?.par == 4 ? 3 : 0)
+                        )
 
                         // Par 5 button
                         Button(action: { saveHoleLocation(par: 5) }) {
@@ -289,7 +297,11 @@ struct MoveHoleManuallyOverlay: View {
                             .padding()
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(currentHole?.par == 5 ? .blue : .green)
+                        .tint(.green)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white, lineWidth: currentHole?.par == 5 ? 3 : 0)
+                        )
                     }
                 }
 

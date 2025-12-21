@@ -77,9 +77,15 @@ struct EditHoleView: View {
                             Button(action: { saveHoleLocation(par: 3) }) {
                                 ZStack {
                                     Circle()
-                                        .fill(hole.par == 3 ? Color.blue.opacity(0.95) : Color.green.opacity(0.95))
+                                        .fill(Color.green.opacity(0.95))
                                         .frame(width: 50, height: 50)
                                         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                    if hole.par == 3 {
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 3)
+                                            .frame(width: 50, height: 50)
+                                    }
 
                                     Text("3")
                                         .font(.system(size: 24, weight: .bold))
@@ -92,9 +98,15 @@ struct EditHoleView: View {
                             Button(action: { saveHoleLocation(par: 4) }) {
                                 ZStack {
                                     Circle()
-                                        .fill(hole.par == 4 ? Color.blue.opacity(0.95) : Color.green.opacity(0.95))
+                                        .fill(Color.green.opacity(0.95))
                                         .frame(width: 50, height: 50)
                                         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                    if hole.par == 4 {
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 3)
+                                            .frame(width: 50, height: 50)
+                                    }
 
                                     Text("4")
                                         .font(.system(size: 24, weight: .bold))
@@ -107,9 +119,15 @@ struct EditHoleView: View {
                             Button(action: { saveHoleLocation(par: 5) }) {
                                 ZStack {
                                     Circle()
-                                        .fill(hole.par == 5 ? Color.blue.opacity(0.95) : Color.green.opacity(0.95))
+                                        .fill(Color.green.opacity(0.95))
                                         .frame(width: 50, height: 50)
                                         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                    if hole.par == 5 {
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 3)
+                                            .frame(width: 50, height: 50)
+                                    }
 
                                     Text("5")
                                         .font(.system(size: 24, weight: .bold))
