@@ -54,9 +54,8 @@ struct EditHoleView: View {
             }
             .ignoresSafeArea()
 
-            // Overlay UI
+            // Top hole number overlay
             VStack {
-                // Top hole number - center, ignoring safe area
                 Text("Edit Hole \(hole.number)")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
@@ -64,85 +63,85 @@ struct EditHoleView: View {
                     .padding(.vertical, 6)
                     .background(Color.black.opacity(0.5))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .frame(maxWidth: .infinity, alignment: .center)
 
                 Spacer()
-
-                // Buttons - bottom
-                VStack(spacing: 8) {
-                    // Par buttons - only show when hole has been moved
-                    if temporaryHolePosition != nil {
-                        HStack(spacing: 8) {
-                            // Par 3 button
-                            Button(action: { saveHoleLocation(par: 3) }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.green.opacity(0.95))
-                                        .frame(width: 50, height: 50)
-                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-
-                                    if hole.par == 3 {
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: 3)
-                                            .frame(width: 50, height: 50)
-                                    }
-
-                                    Text("3")
-                                        .font(.system(size: 24, weight: .bold))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-
-                            // Par 4 button
-                            Button(action: { saveHoleLocation(par: 4) }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.green.opacity(0.95))
-                                        .frame(width: 50, height: 50)
-                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-
-                                    if hole.par == 4 {
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: 3)
-                                            .frame(width: 50, height: 50)
-                                    }
-
-                                    Text("4")
-                                        .font(.system(size: 24, weight: .bold))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-
-                            // Par 5 button
-                            Button(action: { saveHoleLocation(par: 5) }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.green.opacity(0.95))
-                                        .frame(width: 50, height: 50)
-                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-
-                                    if hole.par == 5 {
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: 3)
-                                            .frame(width: 50, height: 50)
-                                    }
-
-                                    Text("5")
-                                        .font(.system(size: 24, weight: .bold))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-                .padding(.horizontal, 6)
-                .padding(.bottom, 16)
             }
             .ignoresSafeArea()
+
+            // Par buttons overlay - only show when hole has been moved
+            if temporaryHolePosition != nil {
+                VStack {
+                    Spacer()
+
+                    HStack(spacing: 8) {
+                        // Par 3 button
+                        Button(action: { saveHoleLocation(par: 3) }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.95))
+                                    .frame(width: 50, height: 50)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                if hole.par == 3 {
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: 3)
+                                        .frame(width: 50, height: 50)
+                                }
+
+                                Text("3")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // Par 4 button
+                        Button(action: { saveHoleLocation(par: 4) }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.95))
+                                    .frame(width: 50, height: 50)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                if hole.par == 4 {
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: 3)
+                                        .frame(width: 50, height: 50)
+                                }
+
+                                Text("4")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // Par 5 button
+                        Button(action: { saveHoleLocation(par: 5) }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.95))
+                                    .frame(width: 50, height: 50)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                if hole.par == 5 {
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: 3)
+                                        .frame(width: 50, height: 50)
+                                }
+
+                                Text("5")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.bottom, 16)
+                }
+                .ignoresSafeArea()
+            }
         }
         .onAppear {
             // Focus the map immediately for crown zoom
