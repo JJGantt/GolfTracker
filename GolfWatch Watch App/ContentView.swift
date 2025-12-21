@@ -5,10 +5,11 @@ struct ContentView: View {
     @StateObject private var connectivity = WatchConnectivityManager.shared
 
     var body: some View {
-        if let round = store.currentRound, !round.holes.isEmpty {
-            // Active round with holes - show the playing view
-            ActiveRoundView()
-        } else if store.currentRound != nil {
+        NavigationStack {
+            if let round = store.currentRound, !round.holes.isEmpty {
+                // Active round with holes - show the playing view
+                ActiveRoundView()
+            } else if store.currentRound != nil {
             // Round received but no holes - loading
             VStack(spacing: 16) {
                 ProgressView()
@@ -56,6 +57,7 @@ struct ContentView: View {
                 }
             }
             .padding()
+            }
         }
     }
 }
