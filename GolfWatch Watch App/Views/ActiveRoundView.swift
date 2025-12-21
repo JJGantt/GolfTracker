@@ -370,6 +370,7 @@ struct ActiveRoundView: View {
         GeometryReader { geometry in
             mainContent(geometry: geometry)
         }
+        .toolbar(.hidden, for: .navigationBar)
         .focusable()
         .focused($isMainViewFocused)
         .digitalCrownRotation(
@@ -461,6 +462,25 @@ struct ActiveRoundView: View {
                             .rotationEffect(.degrees(relativeHeading))
                             .shadow(color: .white, radius: 2)
                             .shadow(color: .black.opacity(0.3), radius: 1)
+                    }
+                }
+
+                // Stroke markers - show all strokes for current hole
+                if let round = store.currentRound {
+                    let strokesForHole = round.strokes.filter { $0.holeNumber == hole.number }
+                    ForEach(Array(strokesForHole.enumerated()), id: \.element.id) { index, stroke in
+                        Annotation("", coordinate: stroke.coordinate) {
+                            ZStack {
+                                Circle()
+                                    .fill(stroke.isPenalty ? .orange : .white)
+                                    .frame(width: 20, height: 20)
+                                    .shadow(color: .black, radius: 2)
+
+                                Text("\(stroke.strokeNumber)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(stroke.isPenalty ? .white : .black)
+                            }
+                        }
                     }
                 }
 
