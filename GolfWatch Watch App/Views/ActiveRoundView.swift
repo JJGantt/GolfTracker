@@ -16,6 +16,9 @@ struct ActiveRoundView: View {
     @State private var showingActionsSheet = false
     @State private var showingEditHole = false
     @State private var showingAddHole = false
+    @State private var navigateToAddHole = false
+    @State private var showingMapTest = false
+    @State private var isTestMode = false
     @FocusState private var isMapFocused: Bool
     @FocusState private var isMainViewFocused: Bool
 
@@ -389,6 +392,15 @@ struct ActiveRoundView: View {
         .sheet(isPresented: $showingAddHole) {
             AddHoleView(store: store, locationManager: locationManager, isPresented: $showingAddHole)
         }
+        .navigationDestination(isPresented: $navigateToAddHole) {
+            AddHoleNavigationView(store: store, locationManager: locationManager)
+        }
+        .sheet(isPresented: $showingMapTest) {
+            MapTestView(locationManager: locationManager, isPresented: $showingMapTest)
+        }
+        .navigationDestination(isPresented: $isTestMode) {
+            MapTestNavigationView(locationManager: locationManager)
+        }
         .onAppear {
             print("⌚ [ActiveRoundView] View appeared")
             print("⌚ [ActiveRoundView] Current location: \(locationManager.location?.description ?? "nil")")
@@ -592,7 +604,7 @@ struct ActiveRoundView: View {
                         // Last hole - show plus to add new hole
                         Button(action: {
                             showingActionsSheet = false
-                            showingAddHole = true
+                            navigateToAddHole = true
                         }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 16, weight: .bold))
@@ -653,15 +665,15 @@ struct ActiveRoundView: View {
             }
             .padding(.horizontal, 8)
 
-            // Bottom row: Finish Hole button
+            // Bottom row: Map Test button
             Button(action: {
-                finishCurrentHole()
                 showingActionsSheet = false
+                isTestMode = true
             }) {
                 HStack(spacing: 8) {
-                    Image(systemName: "flag.fill")
+                    Image(systemName: "map.fill")
                         .font(.system(size: 16, weight: .bold))
-                    Text("Finish Hole")
+                    Text("Map Test")
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .foregroundColor(.white)
@@ -671,8 +683,6 @@ struct ActiveRoundView: View {
                 .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
-            .disabled(store.currentHole.map { store.isHoleCompleted($0.number) } ?? true)
-            .opacity((store.currentHole.map { store.isHoleCompleted($0.number) } ?? true) ? 0.5 : 1.0)
             .padding(.horizontal, 8)
         }
         .padding()
@@ -814,7 +824,7 @@ struct ActiveRoundView: View {
         // If this was the last hole, automatically show add hole view
         if isLastHole {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                showingAddHole = true
+                navigateToAddHole = true
             }
         }
     }
