@@ -22,15 +22,8 @@ struct AddHoleView: View {
             // Map layer
             MapReader { proxy in
                 Map(position: $position) {
-                    // Show user location
-                    if let userLocation = locationManager.location {
-                        Annotation("", coordinate: userLocation.coordinate) {
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.blue)
-                                .shadow(color: .white, radius: 2)
-                        }
-                    }
+                    // User location with built-in support
+                    UserAnnotation()
 
                     // Show temporary hole position
                     if let holePos = temporaryHolePosition {
@@ -72,32 +65,66 @@ struct AddHoleView: View {
 
                 Spacer()
 
-                // Save button - bottom right, only show when hole position is set
+                // Par buttons - only show when hole position is set
                 if temporaryHolePosition != nil {
-                    HStack {
-                        Spacer()
-
-                        Button(action: saveHole) {
+                    HStack(spacing: 8) {
+                        // Par 3 button
+                        Button(action: { saveHole(par: 3) }) {
                             ZStack {
                                 Circle()
                                     .fill(Color.green.opacity(0.95))
                                     .frame(width: 50, height: 50)
                                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
 
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 20, weight: .bold))
+                                Text("3")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // Par 4 button
+                        Button(action: { saveHole(par: 4) }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.95))
+                                    .frame(width: 50, height: 50)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                Text("4")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // Par 5 button
+                        Button(action: { saveHole(par: 5) }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.green.opacity(0.95))
+                                    .frame(width: 50, height: 50)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                Text("5")
+                                    .font(.system(size: 24, weight: .bold))
                                     .foregroundColor(.white)
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
-                    .padding(.trailing, 6)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 6)
                     .padding(.bottom, 16)
                 }
             }
             .ignoresSafeArea()
         }
         .onAppear {
+            // Start location tracking
+            locationManager.requestPermission()
+            locationManager.startTracking()
+
             // Focus the map immediately for crown zoom
             isMapFocused = true
 
@@ -122,14 +149,14 @@ struct AddHoleView: View {
         }
     }
 
-    private func saveHole() {
+    private func saveHole(par: Int) {
         guard let coordinate = temporaryHolePosition else { return }
 
         // Stop maintaining focus before dismissing
         shouldMaintainFocus = false
 
-        // Add hole to course via store
-        store.addHole(coordinate: coordinate)
+        // Add hole to course via store with par
+        store.addHole(coordinate: coordinate, par: par)
 
         // Haptic feedback
         WKInterfaceDevice.current().play(.success)

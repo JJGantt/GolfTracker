@@ -11,6 +11,8 @@ struct ActiveRoundView: View {
     @State private var crownOffset: CGFloat = 0
     @State private var isPlacingTarget = false
     @State private var isDeleting = false
+    @State private var isPlacingPenalty = false
+    @State private var temporaryPenaltyPosition: CLLocationCoordinate2D?
     @State private var showingActionsSheet = false
     @State private var showingEditHole = false
     @State private var showingAddHole = false
@@ -26,6 +28,11 @@ struct ActiveRoundView: View {
 
     private var canUndo: Bool {
         guard let hole = store.currentHole else { return false }
+
+        // Can undo if current hole is finished
+        if store.isHoleCompleted(hole.number) {
+            return true
+        }
 
         // Can undo if there are strokes on current hole
         let strokesForHole = store.currentRound?.strokes.filter { $0.holeNumber == hole.number } ?? []
@@ -126,7 +133,7 @@ struct ActiveRoundView: View {
             .padding(.trailing, 2)
             Spacer()
         }
-        .opacity(isPlacingTarget ? 0 : 1)
+        .opacity(isPlacingTarget || isPlacingPenalty ? 0 : 1)
     }
 
     @ViewBuilder
@@ -137,43 +144,53 @@ struct ActiveRoundView: View {
             HStack(alignment: .bottom, spacing: 4) {
                 // Left: Stack of buttons (bottom to top: penalty, target)
                 VStack(spacing: 4) {
-                    // Target button (top)
-                    Button(action: toggleTargetPlacement) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.95))
-                                .frame(width: buttonSize, height: buttonSize)
-                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-
-                            if isPlacingTarget {
+                    // Target button (top) - hide when placing penalty
+                    if !isPlacingPenalty {
+                        Button(action: toggleTargetPlacement) {
+                            ZStack {
                                 Circle()
-                                    .stroke(Color.yellow, lineWidth: 3)
+                                    .fill(Color.white.opacity(0.95))
                                     .frame(width: buttonSize, height: buttonSize)
+                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+
+                                if isPlacingTarget {
+                                    Circle()
+                                        .stroke(Color.yellow, lineWidth: 3)
+                                        .frame(width: buttonSize, height: buttonSize)
+                                }
+
+                                Image(systemName: "scope")
+                                    .font(.system(size: iconSize, weight: .bold))
+                                    .foregroundColor(.black)
                             }
-
-                            Image(systemName: "scope")
-                                .font(.system(size: iconSize, weight: .bold))
-                                .foregroundColor(.black)
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
 
-                    // Orange penalty button (bottom)
-                    Button(action: addPenaltyStroke) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.orange.opacity(0.95))
-                                .frame(width: buttonSize, height: buttonSize)
-                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                    // Orange penalty button (bottom) - changes to checkmark when placed
+                    if !isPlacingTarget {
+                        Button(action: togglePenaltyPlacement) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.orange.opacity(0.95))
+                                    .frame(width: buttonSize, height: buttonSize)
+                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
 
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: iconSize, weight: .bold))
-                                .foregroundColor(.white)
+                                if isPlacingPenalty && temporaryPenaltyPosition != nil {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: iconSize, weight: .bold))
+                                        .foregroundColor(.white)
+                                } else {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: iconSize, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                            }
                         }
+                        .buttonStyle(PlainButtonStyle())
+                        .disabled(store.isHoleCompleted(hole.number) && !isPlacingPenalty)
+                        .opacity((store.isHoleCompleted(hole.number) && !isPlacingPenalty) ? 0.3 : 0.95)
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(store.isHoleCompleted(hole.number))
-                    .opacity(store.isHoleCompleted(hole.number) || isPlacingTarget ? 0 : 0.95)
                 }
 
                 Spacer()
@@ -216,7 +233,7 @@ struct ActiveRoundView: View {
                     .disabled(store.isHoleCompleted(hole.number))
                     .opacity(store.isHoleCompleted(hole.number) ? 0.3 : 0.95)
                 }
-                .opacity(isPlacingTarget ? 0 : 1)
+                .opacity(isPlacingTarget || isPlacingPenalty ? 0 : 1)
             }
             .padding(.horizontal, 4)
             .padding(.bottom, 16)
@@ -245,7 +262,7 @@ struct ActiveRoundView: View {
             }
         }
         .ignoresSafeArea()
-        .opacity(isPlacingTarget ? 0 : 1)
+        .opacity(isPlacingTarget || isPlacingPenalty ? 0 : 1)
     }
 
     @ViewBuilder
@@ -270,7 +287,7 @@ struct ActiveRoundView: View {
                                 .foregroundColor(.white)
                         }
                     }
-                    .padding(8)
+                    .padding(4)
                     .background(Color.black.opacity(0.25))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .fixedSize()
@@ -291,7 +308,7 @@ struct ActiveRoundView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .ignoresSafeArea()
-        .opacity(isPlacingTarget ? 0 : 1)
+        .opacity(isPlacingTarget || isPlacingPenalty ? 0 : 1)
     }
 
     private var aimArrowRotation: Double {
@@ -390,6 +407,9 @@ struct ActiveRoundView: View {
                 updateMapPosition()
             }
         }
+        .onChange(of: locationManager.heading) { _, _ in
+            // Trigger view refresh when heading updates (to rotate user arrow)
+        }
         .onChange(of: store.currentHoleIndex) { _, _ in
             // Watch syncs hole index from phone - update map when it changes
             updateMapPosition()
@@ -416,10 +436,19 @@ struct ActiveRoundView: View {
                 // User location (bottom)
                 if let userLocation = locationManager.location {
                     Annotation("", coordinate: userLocation.coordinate) {
-                        Image(systemName: "location.fill")
+                        let relativeHeading: Double = {
+                            guard let heading = locationManager.heading else { return 0 }
+                            // Map is rotated by bearing to hole, so arrow needs to compensate
+                            let bearingToHole = calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
+                            return (heading - bearingToHole + 360).truncatingRemainder(dividingBy: 360)
+                        }()
+
+                        Image(systemName: "location.north.fill")
                             .font(.system(size: 20))
                             .foregroundColor(.blue)
+                            .rotationEffect(.degrees(relativeHeading))
                             .shadow(color: .white, radius: 2)
+                            .shadow(color: .black.opacity(0.3), radius: 1)
                     }
                 }
 
@@ -465,30 +494,53 @@ struct ActiveRoundView: View {
                         }
                     }
                 }
+
+                // Temporary penalty position marker
+                if isPlacingPenalty, let penaltyPos = temporaryPenaltyPosition {
+                    Annotation("", coordinate: penaltyPos) {
+                        ZStack {
+                            Circle()
+                                .fill(.orange)
+                                .frame(width: 28, height: 28)
+                                .shadow(color: .black, radius: 2)
+
+                            if let round = store.currentRound, let hole = store.currentHole {
+                                let strokeCount = round.strokes.filter { $0.holeNumber == hole.number }.count
+                                Text("\(strokeCount + 1)")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                    }
+                }
             }
             .mapStyle(.standard)
             .mapControls {
                 // Disable default map controls (including crown zoom and legal label)
             }
             .mapControlVisibility(.hidden) // Hide legal/attribution label
-            .allowsHitTesting(isPlacingTarget)
-            .focusable(isPlacingTarget)
+            .allowsHitTesting(isPlacingTarget || isPlacingPenalty)
+            .focusable(isPlacingTarget || isPlacingPenalty)
             .focused($isMapFocused)
             .onTapGesture { screenLocation in
-                guard isPlacingTarget else { return }
-
-                // If we just deleted a target, skip placing a new one
-                if isDeleting {
-                    return
-                }
-
                 guard let coordinate = proxy.convert(screenLocation, from: .local) else { return }
 
-                // Add new target
-                var coords = targetCoordinatesBinding.wrappedValue
-                coords.append(coordinate)
-                targetCoordinatesBinding.wrappedValue = coords
-                WKInterfaceDevice.current().play(.success)
+                if isPlacingTarget {
+                    // If we just deleted a target, skip placing a new one
+                    if isDeleting {
+                        return
+                    }
+
+                    // Add new target
+                    var coords = targetCoordinatesBinding.wrappedValue
+                    coords.append(coordinate)
+                    targetCoordinatesBinding.wrappedValue = coords
+                    WKInterfaceDevice.current().play(.success)
+                } else if isPlacingPenalty {
+                    // Update penalty position
+                    temporaryPenaltyPosition = coordinate
+                    WKInterfaceDevice.current().play(.click)
+                }
             }
         }
     }
@@ -518,7 +570,7 @@ struct ActiveRoundView: View {
 
                     // Hole number
                     Text("Hole \(hole.number)")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
 
@@ -586,7 +638,7 @@ struct ActiveRoundView: View {
                     showingEditHole = true
                 }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "pencil")
+                        Image(systemName: "flag")
                             .font(.system(size: 16, weight: .bold))
                         Text("Edit")
                             .font(.system(size: 13, weight: .semibold))
@@ -662,8 +714,17 @@ struct ActiveRoundView: View {
     }
 
     private func recordStroke() {
-        // Pass the captured aim direction to the stroke
-        store.addStroke(club: selectedClub, trajectoryHeading: capturedAimDirection)
+        // If no aim direction was captured, default to bearing towards the flag
+        var trajectoryHeading = capturedAimDirection
+        if trajectoryHeading == nil,
+           let userLocation = locationManager.location,
+           let hole = store.currentHole {
+            trajectoryHeading = calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
+            print("⌚ [RecordStroke] No captured heading, using bearing to flag: \(trajectoryHeading!)")
+        }
+
+        // Pass the trajectory heading to the stroke
+        store.addStroke(club: selectedClub, trajectoryHeading: trajectoryHeading)
 
         // Reset aim direction after stroke is recorded
         capturedAimDirection = nil
@@ -690,49 +751,72 @@ struct ActiveRoundView: View {
         WKInterfaceDevice.current().play(.click)
     }
 
-    private func addPenaltyStroke() {
-        guard var round = store.currentRound,
-              let hole = store.currentHole,
-              let userLocation = LocationManager.shared.location else { return }
+    private func togglePenaltyPlacement() {
+        if isPlacingPenalty && temporaryPenaltyPosition != nil {
+            // Save the penalty stroke
+            guard let penaltyCoord = temporaryPenaltyPosition,
+                  var round = store.currentRound,
+                  let hole = store.currentHole else { return }
 
-        let holeCoord = hole.coordinate
-        let userCoord = userLocation.coordinate
+            // Add penalty stroke using selected club
+            let strokesForHole = round.strokes.filter { $0.holeNumber == hole.number }
+            let strokeNumber = strokesForHole.count + 1
 
-        // Calculate position: few yards behind the user in relation to the hole
-        let bearing = calculateBearing(from: holeCoord, to: userCoord) // Bearing from hole to user
-        let distanceMeters = 5.0 // ~5 yards back
+            let stroke = Stroke(
+                holeNumber: hole.number,
+                strokeNumber: strokeNumber,
+                coordinate: penaltyCoord,
+                club: selectedClub,
+                isPenalty: true
+            )
 
-        // Calculate new coordinate
-        let penaltyCoord = calculateCoordinate(from: userCoord, bearing: bearing, distanceMeters: distanceMeters)
+            round.strokes.append(stroke)
+            store.currentRound = round
+            store.saveToStorage()
 
-        // Add penalty stroke using selected club
-        let strokesForHole = round.strokes.filter { $0.holeNumber == hole.number }
-        let strokeNumber = strokesForHole.count + 1
+            // Sync to iPhone
+            WatchConnectivityManager.shared.sendRound(round)
 
-        let stroke = Stroke(
-            holeNumber: hole.number,
-            strokeNumber: strokeNumber,
-            coordinate: penaltyCoord,
-            club: selectedClub,
-            isPenalty: true
-        )
+            // Haptic and audio feedback - failure for penalty (bad thing)
+            WKInterfaceDevice.current().play(.failure)
 
-        round.strokes.append(stroke)
-        store.currentRound = round
-        store.saveToStorage()
+            // Exit placement mode
+            isPlacingPenalty = false
+            temporaryPenaltyPosition = nil
+            isMapFocused = false
+            isMainViewFocused = true
 
-        // Sync to iPhone
-        WatchConnectivityManager.shared.sendRound(round)
-
-        // Haptic feedback - notification for penalty
-        WKInterfaceDevice.current().play(.notification)
+            // Update map position to show hole at top, user at bottom
+            updateMapPosition()
+        } else if !isPlacingPenalty {
+            // Enter penalty placement mode - wait for user to tap to place
+            isPlacingPenalty = true
+            temporaryPenaltyPosition = nil
+            isMapFocused = true
+            isMainViewFocused = false
+            WKInterfaceDevice.current().play(.click)
+        }
     }
 
     private func finishCurrentHole() {
+        // Check if this is the last hole before finishing
+        let isLastHole: Bool = {
+            guard let round = store.currentRound,
+                  let course = store.getCourse(for: round) else { return false }
+            return store.currentHoleIndex >= course.holes.count - 1
+        }()
+
         store.finishCurrentHole()
 
         // Haptic feedback - directionUp for hole completion
         WKInterfaceDevice.current().play(.directionUp)
+
+        // If this was the last hole, automatically show add hole view
+        if isLastHole {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                showingAddHole = true
+            }
+        }
     }
 
     private func toggleTargetPlacement() {

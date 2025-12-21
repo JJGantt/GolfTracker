@@ -20,10 +20,12 @@ struct EditHoleView: View {
                     // Show user location
                     if let userLocation = locationManager.location {
                         Annotation("", coordinate: userLocation.coordinate) {
-                            Image(systemName: "location.fill")
+                            Image(systemName: "location.north.fill")
                                 .font(.system(size: 20))
                                 .foregroundColor(.blue)
+                                .rotationEffect(.degrees(locationManager.heading ?? 0))
                                 .shadow(color: .white, radius: 2)
+                                .shadow(color: .black.opacity(0.3), radius: 1)
                         }
                     }
 
@@ -67,42 +69,56 @@ struct EditHoleView: View {
                 Spacer()
 
                 // Buttons - bottom
-                HStack(spacing: 8) {
-                    // Cancel button
-                    Button(action: {
-                        shouldMaintainFocus = false
-                        isPresented = false
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.red.opacity(0.95))
-                                .frame(width: 50, height: 50)
-                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-
-                            Image(systemName: "xmark")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .buttonStyle(PlainButtonStyle())
-
-                    Spacer()
-
-                    // Save button - only show when hole has been moved
+                VStack(spacing: 8) {
+                    // Par buttons - only show when hole has been moved
                     if temporaryHolePosition != nil {
-                        Button(action: saveHoleLocation) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.green.opacity(0.95))
-                                    .frame(width: 50, height: 50)
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                        HStack(spacing: 8) {
+                            // Par 3 button
+                            Button(action: { saveHoleLocation(par: 3) }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(hole.par == 3 ? Color.blue.opacity(0.95) : Color.green.opacity(0.95))
+                                        .frame(width: 50, height: 50)
+                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
 
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.white)
+                                    Text("3")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
                             }
+                            .buttonStyle(PlainButtonStyle())
+
+                            // Par 4 button
+                            Button(action: { saveHoleLocation(par: 4) }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(hole.par == 4 ? Color.blue.opacity(0.95) : Color.green.opacity(0.95))
+                                        .frame(width: 50, height: 50)
+                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                    Text("4")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            // Par 5 button
+                            Button(action: { saveHoleLocation(par: 5) }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(hole.par == 5 ? Color.blue.opacity(0.95) : Color.green.opacity(0.95))
+                                        .frame(width: 50, height: 50)
+                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+
+                                    Text("5")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .buttonStyle(PlainButtonStyle())
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 .padding(.horizontal, 6)
@@ -133,14 +149,14 @@ struct EditHoleView: View {
         }
     }
 
-    private func saveHoleLocation() {
+    private func saveHoleLocation(par: Int) {
         guard let coordinate = temporaryHolePosition else { return }
 
         // Stop maintaining focus before dismissing
         shouldMaintainFocus = false
 
-        // Update hole location via store
-        store.updateHole(holeNumber: hole.number, newCoordinate: coordinate)
+        // Update hole location and par via store
+        store.updateHole(holeNumber: hole.number, newCoordinate: coordinate, par: par)
 
         // Haptic feedback
         WKInterfaceDevice.current().play(.success)

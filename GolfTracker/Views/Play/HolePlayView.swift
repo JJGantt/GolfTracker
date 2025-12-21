@@ -719,11 +719,11 @@ struct HolePlayView: View {
         updateAddHoleMapPosition()
     }
 
-    private func saveTemporaryHole() {
+    private func saveTemporaryHole(par: Int) {
         guard let coordinate = temporaryHolePosition else { return }
 
-        // Save the hole
-        store.addHole(to: currentCourse, coordinate: coordinate)
+        // Save the hole with par
+        store.addHole(to: currentCourse, coordinate: coordinate, par: par)
 
         // Navigate to the newly added hole
         currentHoleIndex = currentCourse.holes.count - 1
@@ -1018,10 +1018,6 @@ struct StrokeDetailsView: View {
     @Binding var position: MapCameraPosition
     @Binding var savedMapRegion: MKCoordinateRegion?
 
-    @State private var length: StrokeLength? = nil
-    @State private var location: StrokeLocation? = nil
-    @State private var contact: StrokeContact? = nil
-    @State private var swingStrength: SwingStrength? = nil
     @State private var showingRenumberAlert = false
     @State private var newStrokeNumber = ""
 
@@ -1038,257 +1034,11 @@ struct StrokeDetailsView: View {
         )
     }
 
-    @ViewBuilder
-    private var locationSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Location")
-                .font(.headline)
-                .padding(.leading, 4)
-
-            HStack(spacing: 8) {
-                Button(action: { location = (location == .hazard) ? nil : .hazard }) {
-                    Text("Hazard")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(location == .hazard ? Color.red : Color.red.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { location = (location == .rough) ? nil : .rough }) {
-                    Text("Rough")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(location == .rough ? Color.blue : Color.blue.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { location = (location == .sand) ? nil : .sand }) {
-                    Text("Sand")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(location == .sand ? Color.orange : Color.orange.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-            }
-
-            HStack(spacing: 8) {
-                Button(action: { location = (location == .fringe) ? nil : .fringe }) {
-                    Text("Fringe")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(location == .fringe ? Color.green.opacity(0.7) : Color.green.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { location = (location == .fairway) ? nil : .fairway }) {
-                    Text("Fairway")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(location == .fairway ? Color.green : Color.green.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { location = (location == .green) ? nil : .green }) {
-                    Text("Green")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(location == .green ? Color.green : Color.green.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-            }
-        }
-        .padding(.horizontal)
-        .opacity(currentStroke?.isPenalty == true ? 0.5 : 1.0)
-    }
-
-    @ViewBuilder
-    private var contactSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Contact")
-                .font(.headline)
-                .padding(.leading, 4)
-
-            HStack(spacing: 12) {
-                Button(action: { contact = (contact == .fat) ? nil : .fat }) {
-                    Text("Fat")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(contact == .fat ? Color.red : Color.red.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { contact = (contact == .clean) ? nil : .clean }) {
-                    Text("Clean")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(contact == .clean ? Color.green : Color.green.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { contact = (contact == .top) ? nil : .top }) {
-                    Text("Top")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(contact == .top ? Color.orange : Color.orange.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-            }
-        }
-        .padding(.horizontal)
-        .opacity(currentStroke?.isPenalty == true ? 0.5 : 1.0)
-    }
-
-    @ViewBuilder
-    private var swingStrengthSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Swing Strength")
-                .font(.headline)
-                .padding(.leading, 4)
-
-            HStack(spacing: 12) {
-                Button(action: { swingStrength = (swingStrength == .chip) ? nil : .chip }) {
-                    Text("Chip")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(swingStrength == .chip ? Color.blue : Color.blue.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { swingStrength = (swingStrength == .medium) ? nil : .medium }) {
-                    Text("Medium")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(swingStrength == .medium ? Color.blue : Color.blue.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { swingStrength = (swingStrength == .full) ? nil : .full }) {
-                    Text("Full")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(swingStrength == .full ? Color.blue : Color.blue.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-            }
-        }
-        .padding(.horizontal)
-        .opacity(currentStroke?.isPenalty == true ? 0.5 : 1.0)
-    }
-
-
-    @ViewBuilder
-    private var lengthSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Length")
-                .font(.headline)
-                .padding(.leading, 4)
-
-            HStack(spacing: 8) {
-                Button(action: { length = (length == .redShort) ? nil : .redShort }) {
-                    Text("Short")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(length == .redShort ? Color.red : Color.red.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { length = (length == .yellowShort) ? nil : .yellowShort }) {
-                    Text("Short")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(length == .yellowShort ? Color.yellow : Color.yellow.opacity(0.3))
-                        .foregroundColor(.black)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { length = (length == .center) ? nil : .center }) {
-                    Text("Good")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(length == .center ? Color.green : Color.green.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { length = (length == .yellowLong) ? nil : .yellowLong }) {
-                    Text("Long")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(length == .yellowLong ? Color.yellow : Color.yellow.opacity(0.3))
-                        .foregroundColor(.black)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-
-                Button(action: { length = (length == .redLong) ? nil : .redLong }) {
-                    Text("Long")
-                        .font(.caption)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(length == .redLong ? Color.red : Color.red.opacity(0.3))
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .disabled(currentStroke?.isPenalty == true)
-            }
-        }
-        .padding(.horizontal)
-        .opacity(currentStroke?.isPenalty == true ? 0.5 : 1.0)
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
             VStack(spacing: 20) {
-                lengthSection
-                locationSection
-                contactSection
-                swingStrengthSection
-
                 // Stroke navigation
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
@@ -1462,23 +1212,10 @@ struct StrokeDetailsView: View {
     }
 
     private func loadStrokeData() {
-        guard let stroke = currentStroke else { return }
-        length = stroke.length
-        location = stroke.location
-        contact = stroke.contact
-        swingStrength = stroke.swingStrength
+        // No data to load anymore
     }
 
     private func saveCurrentStroke() {
-        guard let stroke = currentStroke else { return }
-        store.updateStrokeDetails(
-            in: round,
-            stroke: stroke,
-            length: length,
-            direction: nil,
-            location: location,
-            contact: contact,
-            swingStrength: swingStrength
-        )
+        // No stroke details to save anymore
     }
 }
