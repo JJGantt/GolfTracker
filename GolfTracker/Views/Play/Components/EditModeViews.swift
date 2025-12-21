@@ -704,7 +704,7 @@ struct AddPenaltyStrokeOverlay: View {
     @Binding var temporaryPosition: CLLocationCoordinate2D?
     @Binding var isAddingPenaltyStroke: Bool
     let userLocation: CLLocation?
-    let store: DataStore
+    let recordPenaltyStroke: () -> Void
     let updateMapPosition: () -> Void
 
     var body: some View {
@@ -728,14 +728,7 @@ struct AddPenaltyStrokeOverlay: View {
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
                     if temporaryPosition != nil {
-                        Button(action: {
-                            guard let hole = currentHole,
-                                  let round = activeRound,
-                                  let coordinate = temporaryPosition else { return }
-                            store.addPenaltyStroke(to: round, holeNumber: hole.number, coordinate: coordinate)
-                            isAddingPenaltyStroke = false
-                            temporaryPosition = nil
-                        }) {
+                        Button(action: recordPenaltyStroke) {
                             Label("Save", systemImage: "checkmark.circle.fill")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)

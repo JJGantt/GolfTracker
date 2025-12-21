@@ -132,6 +132,7 @@ struct AddHoleNavigationView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             // Start location tracking
             locationManager.requestPermission()

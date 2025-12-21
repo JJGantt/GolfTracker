@@ -30,8 +30,6 @@ struct HolePlayView: View {
     @State private var isMovingStroke = false
     @State private var strokeToMove: Stroke?
     @State private var savedMapRegion: MKCoordinateRegion?
-    @State private var longPressLocation: CGPoint?
-    @State private var showingLongPressClubSelection = false
     @State private var isAddingPenaltyStroke = false
     @State private var trajectoryHeading: Double? = nil // nil means default to hole direction
     @State private var forceUserHoleView = false // Toggle between tee/hole and user/hole view
@@ -70,7 +68,9 @@ struct HolePlayView: View {
     private var strokesForCurrentHole: [Stroke] {
         guard let round = currentRound,
               let hole = currentHole else { return [] }
-        return round.strokes.filter { $0.holeNumber == hole.number }
+        return round.strokes
+            .filter { $0.holeNumber == hole.number }
+            .sorted { $0.timestamp < $1.timestamp }
     }
 
     private var mostRecentStroke: Stroke? {
@@ -304,7 +304,7 @@ struct HolePlayView: View {
                     temporaryPosition: $temporaryPosition,
                     isAddingPenaltyStroke: $isAddingPenaltyStroke,
                     userLocation: locationManager.location,
-                    store: store,
+                    recordPenaltyStroke: recordPenaltyStroke,
                     updateMapPosition: updateMapPosition
                 )
             } else if let hole = currentHole {
@@ -341,6 +341,8 @@ struct HolePlayView: View {
                     errorMessage: locationManager.errorMessage,
                     currentHoleIndex: currentHoleIndex,
                     totalHoles: currentCourse.holes.count,
+                    strokes: strokesForCurrentHole,
+                    userLocation: locationManager.location,
                     onPrevious: previousHole,
                     onNext: nextHole,
                     onAddHole: startAddingNextHole
@@ -382,7 +384,7 @@ struct HolePlayView: View {
         .disabled(currentHole == nil)
     }
 
-    var body: some View {
+    private var contentWithModifiers: some View {
         mainContent
             .ignoresSafeArea(edges: .all)
             .navigationTitle(currentCourse.name)
@@ -429,13 +431,16 @@ struct HolePlayView: View {
                 moveCurrentHoleToUserLocation: moveCurrentHoleToUserLocation,
                 addTeeMarkerAtCurrentLocation: addTeeMarkerAtCurrentLocation
             ))
-            .modifier(ClubSelectionModifier(
-                showingClubSelection: $showingClubSelection,
-                showingLongPressClubSelection: $showingLongPressClubSelection,
-                temporaryPosition: $temporaryPosition,
-                recordStroke: recordStroke,
-                recordLongPressStroke: recordLongPressStroke
-            ))
+            .confirmationDialog("Select Club", isPresented: $showingClubSelection) {
+                ForEach(Club.allCases, id: \.self) { club in
+                    Button(club.rawValue) {
+                        recordStroke(with: club)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Which club did you use for this stroke?")
+            }
             .modifier(StrokeDetailsModifier(
                 showingStrokeDetails: $showingStrokeDetails,
                 activeRound: activeRound,
@@ -448,6 +453,10 @@ struct HolePlayView: View {
                 savedMapRegion: $savedMapRegion,
                 store: store
             ))
+    }
+
+    var body: some View {
+        contentWithModifiers
             .onAppear {
                 locationManager.requestPermission()
 
@@ -475,8 +484,11 @@ struct HolePlayView: View {
         .onChange(of: currentHoleIndex) { _, _ in
             updateMapPosition()
         }
-        .onChange(of: locationManager.location) { _, _ in
-            // Don't auto-update map when adding hole - let user pan freely
+        .onChange(of: locationManager.location) { _, newLocation in
+            // When adding first hole and location becomes available, center the map
+            if isAddingHole && currentCourse.holes.isEmpty && newLocation != nil {
+                updateAddHoleMapPosition()
+            }
         }
         .onChange(of: isAddingHole) { _, newValue in
             if newValue {
@@ -707,10 +719,27 @@ struct HolePlayView: View {
         guard let round = activeRound,
               let hole = currentHole,
               let location = locationManager.location else { return }
-        store.addStroke(to: round, holeNumber: hole.number, coordinate: location.coordinate, club: club, trajectoryHeading: trajectoryHeading)
+
+        // Use manual trajectory if set, otherwise calculate bearing to hole
+        let heading = trajectoryHeading ?? calculateBearing(from: location.coordinate, to: hole.coordinate)
+
+        store.addStroke(to: round, holeNumber: hole.number, coordinate: location.coordinate, club: club, trajectoryHeading: heading)
 
         // Reset aim direction after recording stroke
         trajectoryHeading = nil
+    }
+
+    private func recordPenaltyStroke() {
+        guard let round = activeRound,
+              let hole = currentHole,
+              let coordinate = temporaryPosition else { return }
+
+        // Use the club from the most recent stroke, or default to putter if no previous strokes
+        let club = mostRecentStroke?.club ?? .putter
+
+        store.addPenaltyStroke(to: round, holeNumber: hole.number, coordinate: coordinate, club: club)
+        isAddingPenaltyStroke = false
+        temporaryPosition = nil
     }
 
     private func startAddingNextHole() {
@@ -869,19 +898,6 @@ struct HolePlayView: View {
                 .padding(.bottom, 200)
             }
         }
-    }
-
-    private func recordStrokeAtCoordinate(_ coordinate: CLLocationCoordinate2D) {
-        temporaryPosition = coordinate
-        showingLongPressClubSelection = true
-    }
-
-    private func recordLongPressStroke(with club: Club) {
-        guard let round = activeRound,
-              let hole = currentHole,
-              let coordinate = temporaryPosition else { return }
-        store.addStroke(to: round, holeNumber: hole.number, coordinate: coordinate, club: club, trajectoryHeading: nil)
-        temporaryPosition = nil
     }
 
     private func updateMapPosition() {

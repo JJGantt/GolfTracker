@@ -65,11 +65,12 @@ class DataStore: ObservableObject {
             return
         }
 
-        // Update holes array, completed holes, current hole index, and targets from Watch
+        // Update everything from Watch
         rounds[roundIndex].holes = watchRound.holes
         rounds[roundIndex].completedHoles = watchRound.completedHoles
         rounds[roundIndex].currentHoleIndex = watchRound.currentHoleIndex
         rounds[roundIndex].targets = watchRound.targets
+        rounds[roundIndex].strokes = watchRound.strokes
 
         // Also update the course with the new holes
         if let courseIndex = courses.firstIndex(where: { $0.id == watchRound.courseId }) {
@@ -78,7 +79,7 @@ class DataStore: ObservableObject {
         }
 
         saveRounds()
-        print("📱 [DataStore] Updated round from Watch: \(watchRound.completedHoles.count) holes completed, current hole index: \(watchRound.currentHoleIndex)")
+        print("📱 [DataStore] Updated round from Watch: \(watchRound.strokes.count) strokes, \(watchRound.completedHoles.count) holes completed, current hole index: \(watchRound.currentHoleIndex)")
     }
 
     private var coursesFileURL: URL {
@@ -387,18 +388,23 @@ class DataStore: ObservableObject {
         }
 
         saveRounds()
+
+        // Send updated round to Watch
+        WatchConnectivityManager.shared.sendRound(rounds[roundIndex])
     }
 
-    func addPenaltyStroke(to round: Round, holeNumber: Int, coordinate: CLLocationCoordinate2D) {
+    func addPenaltyStroke(to round: Round, holeNumber: Int, coordinate: CLLocationCoordinate2D, club: Club) {
         guard let roundIndex = rounds.firstIndex(where: { $0.id == round.id }) else { return }
 
         let strokesForHole = rounds[roundIndex].strokes.filter { $0.holeNumber == holeNumber }
         let strokeNumber = strokesForHole.count + 1
 
-        // Use putter as default club for penalty strokes (it doesn't matter much)
-        let stroke = Stroke(holeNumber: holeNumber, strokeNumber: strokeNumber, coordinate: coordinate, club: .putter, isPenalty: true)
+        let stroke = Stroke(holeNumber: holeNumber, strokeNumber: strokeNumber, coordinate: coordinate, club: club, isPenalty: true)
         rounds[roundIndex].strokes.append(stroke)
         saveRounds()
+
+        // Send updated round to Watch
+        WatchConnectivityManager.shared.sendRound(rounds[roundIndex])
     }
 
     func renumberStroke(in round: Round, stroke: Stroke, newNumber: Int) {

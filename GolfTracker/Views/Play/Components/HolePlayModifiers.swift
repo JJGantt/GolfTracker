@@ -152,39 +152,6 @@ struct HoleEditingModifier: ViewModifier {
     }
 }
 
-struct ClubSelectionModifier: ViewModifier {
-    @Binding var showingClubSelection: Bool
-    @Binding var showingLongPressClubSelection: Bool
-    @Binding var temporaryPosition: CLLocationCoordinate2D?
-    let recordStroke: (Club) -> Void
-    let recordLongPressStroke: (Club) -> Void
-
-    func body(content: Content) -> some View {
-        content
-            .confirmationDialog("Select Club", isPresented: $showingClubSelection) {
-                ForEach(Club.allCases, id: \.self) { club in
-                    Button(club.rawValue) {
-                        recordStroke(club)
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Which club did you use for this stroke?")
-            }
-            .confirmationDialog("Select Club", isPresented: $showingLongPressClubSelection) {
-                ForEach(Club.allCases, id: \.self) { club in
-                    Button(club.rawValue) {
-                        recordLongPressStroke(club)
-                    }
-                }
-                Button("Cancel", role: .cancel) {
-                    temporaryPosition = nil
-                }
-            } message: {
-                Text("Which club did you use for this stroke?")
-            }
-    }
-}
 
 struct StrokeDetailsModifier: ViewModifier {
     @Binding var showingStrokeDetails: Bool
