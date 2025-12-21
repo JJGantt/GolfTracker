@@ -21,29 +21,6 @@ enum Club: String, Codable, CaseIterable {
     case punch = "Punch"
 }
 
-enum StrokeLength: Codable, CaseIterable {
-    case redShort
-    case yellowShort
-    case center
-    case yellowLong
-    case redLong
-
-    var displayName: String {
-        switch self {
-        case .redShort, .yellowShort: return "Short"
-        case .center: return "Good"
-        case .yellowLong, .redLong: return "Long"
-        }
-    }
-
-    var severity: Int {
-        switch self {
-        case .redShort, .redLong: return 2
-        case .yellowShort, .yellowLong: return 1
-        case .center: return 0
-        }
-    }
-}
 
 enum StrokeDirection: Codable, CaseIterable {
     case redRight
@@ -69,26 +46,6 @@ enum StrokeDirection: Codable, CaseIterable {
     }
 }
 
-enum StrokeLocation: String, Codable, CaseIterable {
-    case hazard = "Hazard"
-    case rough = "Rough"
-    case sand = "Sand"
-    case fringe = "Fringe"
-    case fairway = "Fairway"
-    case green = "Green"
-}
-
-enum StrokeContact: String, Codable, CaseIterable {
-    case fat = "Fat"
-    case clean = "Clean"
-    case top = "Top"
-}
-
-enum SwingStrength: String, Codable, CaseIterable {
-    case chip = "Chip"
-    case medium = "Medium"
-    case full = "Full"
-}
 
 struct Course: Identifiable, Codable, Hashable {
     var id = UUID()
@@ -142,11 +99,7 @@ struct Stroke: Identifiable, Codable, Hashable {
     var longitude: Double
     var club: Club
     var timestamp: Date
-    var length: StrokeLength?
     var direction: StrokeDirection?
-    var location: StrokeLocation?
-    var contact: StrokeContact?
-    var swingStrength: SwingStrength?
     var landingLatitude: Double?
     var landingLongitude: Double?
     var isPenalty: Bool

@@ -43,7 +43,7 @@ struct AddHoleOverlay: View {
     let holeCount: Int
     @Binding var temporaryHolePosition: CLLocationCoordinate2D?
     @Binding var isAddingHole: Bool
-    let saveTemporaryHole: () -> Void
+    let saveTemporaryHole: (Int) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,17 +64,55 @@ struct AddHoleOverlay: View {
 
             Spacer()
 
-            // Save button at bottom
+            // Par buttons and Cancel at bottom
             VStack(spacing: 12) {
                 if temporaryHolePosition != nil {
-                    Button(action: saveTemporaryHole) {
-                        Label("Save Hole", systemImage: "checkmark.circle.fill")
-                            .font(.headline)
+                    HStack(spacing: 12) {
+                        // Par 3 button
+                        Button(action: { saveTemporaryHole(3) }) {
+                            VStack(spacing: 4) {
+                                Text("3")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                Text("Par")
+                                    .font(.caption)
+                            }
                             .frame(maxWidth: .infinity)
                             .padding()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+
+                        // Par 4 button
+                        Button(action: { saveTemporaryHole(4) }) {
+                            VStack(spacing: 4) {
+                                Text("4")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                Text("Par")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+
+                        // Par 5 button
+                        Button(action: { saveTemporaryHole(5) }) {
+                            VStack(spacing: 4) {
+                                Text("5")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                Text("Par")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
                 }
 
                 Button(action: {
@@ -205,26 +243,57 @@ struct MoveHoleManuallyOverlay: View {
             Spacer()
 
             VStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    if temporaryPosition != nil {
-                        Button(action: {
-                            guard let hole = currentHole,
-                                  let coordinate = temporaryPosition else { return }
-                            store.updateHole(hole, in: currentCourse, newCoordinate: coordinate)
-                            restoreSavedMapRegion()
-                            isMovingHoleManually = false
-                            temporaryPosition = nil
-                            savedMapRegion = nil
-                        }) {
-                            Label("Save", systemImage: "checkmark.circle.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
+                // Par buttons - only show when hole has been moved
+                if temporaryPosition != nil {
+                    HStack(spacing: 12) {
+                        // Par 3 button
+                        Button(action: { saveHoleLocation(par: 3) }) {
+                            VStack(spacing: 4) {
+                                Text("3")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                Text("Par")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(.green)
-                    }
+                        .tint(currentHole?.par == 3 ? .blue : .green)
 
+                        // Par 4 button
+                        Button(action: { saveHoleLocation(par: 4) }) {
+                            VStack(spacing: 4) {
+                                Text("4")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                Text("Par")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(currentHole?.par == 4 ? .blue : .green)
+
+                        // Par 5 button
+                        Button(action: { saveHoleLocation(par: 5) }) {
+                            VStack(spacing: 4) {
+                                Text("5")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                Text("Par")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(currentHole?.par == 5 ? .blue : .green)
+                    }
+                }
+
+                HStack(spacing: 8) {
                     Button(action: {
                         guard let location = userLocation else { return }
                         temporaryPosition = location.coordinate
@@ -254,6 +323,16 @@ struct MoveHoleManuallyOverlay: View {
             .padding(.bottom, 20)
             .background(.ultraThinMaterial)
         }
+    }
+
+    private func saveHoleLocation(par: Int) {
+        guard let hole = currentHole,
+              let coordinate = temporaryPosition else { return }
+        store.updateHole(hole, in: currentCourse, newCoordinate: coordinate, par: par)
+        restoreSavedMapRegion()
+        isMovingHoleManually = false
+        temporaryPosition = nil
+        savedMapRegion = nil
     }
 }
 

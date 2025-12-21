@@ -175,10 +175,10 @@ class DataStore: ObservableObject {
         }
     }
 
-    func addHole(to course: Course, coordinate: CLLocationCoordinate2D) {
+    func addHole(to course: Course, coordinate: CLLocationCoordinate2D, par: Int? = nil) {
         guard let index = courses.firstIndex(where: { $0.id == course.id }) else { return }
         let holeNumber = courses[index].holes.count + 1
-        let hole = Hole(number: holeNumber, coordinate: coordinate)
+        let hole = Hole(number: holeNumber, coordinate: coordinate, yards: nil, par: par, teeCoordinate: nil)
         courses[index].holes.append(hole)
         saveCourses()
 
@@ -199,7 +199,15 @@ class DataStore: ObservableObject {
 
         // Update the round's holes with the latest from the course
         if let courseIndex = courses.firstIndex(where: { $0.id == course.id }) {
+            let oldHoleCount = rounds[roundIndex].holes.count
             rounds[roundIndex].holes = courses[courseIndex].holes
+
+            // If a new hole was added, update the current hole index to point to it
+            if courses[courseIndex].holes.count > oldHoleCount {
+                rounds[roundIndex].currentHoleIndex = courses[courseIndex].holes.count - 1
+                print("📱 [DataStore] New hole added, updated currentHoleIndex to \(rounds[roundIndex].currentHoleIndex)")
+            }
+
             saveRounds()
 
             // Resync to Watch
@@ -219,11 +227,14 @@ class DataStore: ObservableObject {
         updateActiveRoundHoles(for: course)
     }
 
-    func updateHole(_ hole: Hole, in course: Course, newCoordinate: CLLocationCoordinate2D) {
+    func updateHole(_ hole: Hole, in course: Course, newCoordinate: CLLocationCoordinate2D, par: Int? = nil) {
         guard let courseIndex = courses.firstIndex(where: { $0.id == course.id }),
               let holeIndex = courses[courseIndex].holes.firstIndex(where: { $0.id == hole.id }) else { return }
         courses[courseIndex].holes[holeIndex].latitude = newCoordinate.latitude
         courses[courseIndex].holes[holeIndex].longitude = newCoordinate.longitude
+        if let par = par {
+            courses[courseIndex].holes[holeIndex].par = par
+        }
         saveCourses()
         updateActiveRoundHoles(for: course)
     }
@@ -324,15 +335,11 @@ class DataStore: ObservableObject {
         WatchConnectivityManager.shared.sendRound(rounds[roundIndex])
     }
 
-    func updateStrokeDetails(in round: Round, stroke: Stroke, length: StrokeLength?, direction: StrokeDirection?, location: StrokeLocation?, contact: StrokeContact?, swingStrength: SwingStrength?) {
+    func updateStrokeDetails(in round: Round, stroke: Stroke, direction: StrokeDirection?) {
         guard let roundIndex = rounds.firstIndex(where: { $0.id == round.id }),
               let strokeIndex = rounds[roundIndex].strokes.firstIndex(where: { $0.id == stroke.id }) else { return }
 
-        rounds[roundIndex].strokes[strokeIndex].length = length
         rounds[roundIndex].strokes[strokeIndex].direction = direction
-        rounds[roundIndex].strokes[strokeIndex].location = location
-        rounds[roundIndex].strokes[strokeIndex].contact = contact
-        rounds[roundIndex].strokes[strokeIndex].swingStrength = swingStrength
 
         saveRounds()
     }

@@ -237,20 +237,8 @@ struct StrokeDetailRow: View {
 
             if hasDetails {
                 HStack(spacing: 12) {
-                    if let length = stroke.length {
-                        DetailBadge(text: length.displayName, color: badgeColor(severity: length.severity))
-                    }
                     if let direction = stroke.direction {
                         DetailBadge(text: direction.displayName, color: badgeColor(severity: direction.severity))
-                    }
-                    if let location = stroke.location {
-                        DetailBadge(text: location.rawValue, color: locationColor(location))
-                    }
-                    if let contact = stroke.contact {
-                        DetailBadge(text: contact.rawValue, color: contactColor(contact))
-                    }
-                    if let strength = stroke.swingStrength {
-                        DetailBadge(text: strength.rawValue, color: .blue.opacity(0.3))
                     }
                 }
                 .padding(.top, 2)
@@ -263,7 +251,7 @@ struct StrokeDetailRow: View {
     }
 
     private var hasDetails: Bool {
-        stroke.length != nil || stroke.direction != nil || stroke.location != nil || stroke.contact != nil || stroke.swingStrength != nil
+        stroke.direction != nil
     }
 
     private func badgeColor(severity: Int) -> Color {
@@ -271,24 +259,6 @@ struct StrokeDetailRow: View {
         case 2: return .red.opacity(0.3)
         case 1: return .yellow.opacity(0.3)
         default: return .green.opacity(0.3)
-        }
-    }
-
-    private func locationColor(_ location: StrokeLocation) -> Color {
-        switch location {
-        case .hazard: return .red.opacity(0.3)
-        case .rough: return .blue.opacity(0.3)
-        case .sand: return .orange.opacity(0.3)
-        case .fringe: return .green.opacity(0.2)
-        case .fairway, .green: return .green.opacity(0.3)
-        }
-    }
-
-    private func contactColor(_ contact: StrokeContact) -> Color {
-        switch contact {
-        case .fat: return .red.opacity(0.3)
-        case .clean: return .green.opacity(0.3)
-        case .top: return .orange.opacity(0.3)
         }
     }
 }
