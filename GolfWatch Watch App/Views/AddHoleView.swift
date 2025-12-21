@@ -3,7 +3,7 @@ import MapKit
 
 struct AddHoleView: View {
     @ObservedObject var store: WatchDataStore
-    let locationManager: LocationManager
+    @ObservedObject var locationManager: LocationManager
     @Binding var isPresented: Bool
 
     @State private var position: MapCameraPosition = .automatic
@@ -22,6 +22,18 @@ struct AddHoleView: View {
             // Map layer
             MapReader { proxy in
                 Map(position: $position) {
+                    // Show user location (copied from phone AddHoleMapView pattern)
+                    if let userLocation = locationManager.location {
+                        Annotation("", coordinate: userLocation.coordinate) {
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 30))
+                                .foregroundColor(.blue)
+                                .rotationEffect(.degrees(locationManager.heading ?? 0))
+                                .shadow(color: .white, radius: 2)
+                                .shadow(color: .black.opacity(0.3), radius: 1)
+                        }
+                    }
+
                     // Show temporary hole position
                     if let holePos = temporaryHolePosition {
                         Annotation("", coordinate: holePos) {
@@ -29,18 +41,6 @@ struct AddHoleView: View {
                                 .foregroundColor(.yellow)
                                 .font(.system(size: 24))
                                 .shadow(color: .black, radius: 2)
-                        }
-                    }
-
-                    // User location (copied from ActiveRoundView)
-                    if let userLocation = locationManager.location {
-                        Annotation("", coordinate: userLocation.coordinate) {
-                            Image(systemName: "location.north.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.blue)
-                                .rotationEffect(.degrees(locationManager.heading ?? 0))
-                                .shadow(color: .white, radius: 2)
-                                .shadow(color: .black.opacity(0.3), radius: 1)
                         }
                     }
                 }
@@ -60,9 +60,8 @@ struct AddHoleView: View {
             }
             .ignoresSafeArea()
 
-            // Overlay UI
+            // Top hole number overlay
             VStack {
-                // Top hole number - center, ignoring safe area
                 Text("Hole \(nextHoleNumber)")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
@@ -70,12 +69,16 @@ struct AddHoleView: View {
                     .padding(.vertical, 6)
                     .background(Color.black.opacity(0.5))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .frame(maxWidth: .infinity, alignment: .center)
 
                 Spacer()
+            }
+            .ignoresSafeArea()
 
-                // Par buttons - only show when hole position is set
-                if temporaryHolePosition != nil {
+            // Par buttons overlay - only show when hole position is set
+            if temporaryHolePosition != nil {
+                VStack {
+                    Spacer()
+
                     HStack(spacing: 8) {
                         // Par 3 button
                         Button(action: { saveHole(par: 3) }) {
@@ -122,12 +125,11 @@ struct AddHoleView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
-                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 6)
                     .padding(.bottom, 16)
                 }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         }
         .onAppear {
             // Start location tracking

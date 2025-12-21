@@ -18,6 +18,11 @@ class LocationManager: NSObject, ObservableObject {
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = 1 // Update every 1 meter
         locationManager.headingFilter = 5 // Update every 5 degrees
+
+        #if targetEnvironment(simulator)
+        // Set a default location for simulator testing
+        location = CLLocation(latitude: 37.7749, longitude: -122.4194)
+        #endif
     }
 
     func requestPermission() {
