@@ -32,7 +32,7 @@ struct AddHoleView: View {
                         }
                     }
 
-                    // User location with custom blue arrow
+                    // User location (copied from ActiveRoundView)
                     if let userLocation = locationManager.location {
                         Annotation("", coordinate: userLocation.coordinate) {
                             Image(systemName: "location.north.fill")
