@@ -22,9 +22,6 @@ struct AddHoleView: View {
             // Map layer
             MapReader { proxy in
                 Map(position: $position) {
-                    // User location with built-in support
-                    UserAnnotation()
-
                     // Show temporary hole position
                     if let holePos = temporaryHolePosition {
                         Annotation("", coordinate: holePos) {
@@ -32,6 +29,18 @@ struct AddHoleView: View {
                                 .foregroundColor(.yellow)
                                 .font(.system(size: 24))
                                 .shadow(color: .black, radius: 2)
+                        }
+                    }
+
+                    // User location with custom blue arrow
+                    if let userLocation = locationManager.location {
+                        Annotation("", coordinate: userLocation.coordinate) {
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.blue)
+                                .rotationEffect(.degrees(locationManager.heading ?? 0))
+                                .shadow(color: .white, radius: 2)
+                                .shadow(color: .black.opacity(0.3), radius: 1)
                         }
                     }
                 }
