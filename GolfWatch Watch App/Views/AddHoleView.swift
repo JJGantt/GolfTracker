@@ -6,10 +6,14 @@ struct AddHoleView: View {
     @ObservedObject var locationManager: LocationManager
     @Binding var isPresented: Bool
 
-    @State private var position: MapCameraPosition = .automatic
+    @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+        span: MKCoordinateSpan(latitudeDelta: 0.003, longitudeDelta: 0.003)
+    ))
     @State private var temporaryHolePosition: CLLocationCoordinate2D?
     @FocusState private var isMapFocused: Bool
     @State private var shouldMaintainFocus = true
+    @State private var hasUserInteracted = false
 
     private var nextHoleNumber: Int {
         guard let round = store.currentRound,
@@ -52,10 +56,15 @@ struct AddHoleView: View {
                 .focusable()
                 .focused($isMapFocused)
                 .onTapGesture { screenCoord in
+                    hasUserInteracted = true
                     if let coordinate = proxy.convert(screenCoord, from: .local) {
                         temporaryHolePosition = coordinate
                         WKInterfaceDevice.current().play(.click)
                     }
+                }
+                .onMapCameraChange { context in
+                    // Mark as interacted when user pans the map
+                    hasUserInteracted = true
                 }
             }
             .ignoresSafeArea()

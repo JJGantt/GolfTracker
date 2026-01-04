@@ -6,36 +6,53 @@ struct HolePlayView: View {
     let course: Course
     let resumingRound: Round?
 
+    // MARK: - Core State
     @StateObject private var locationManager = LocationManager()
     @State private var currentHoleIndex = 0
+    @State private var activeRound: Round?
+
+    // MARK: - Map State
     @State private var position = MapCameraPosition.automatic
+    @State private var useStandardMap = false
+    @State private var savedMapRegion: MKCoordinateRegion?
+    @State private var forceUserHoleView = false
+
+    // MARK: - Editing Modes
+    @State private var isAddingHole = false
+    @State private var isMovingHoleManually = false
+    @State private var isAddingTeeManually = false
+    @State private var isMovingStroke = false
+    @State private var isAddingPenaltyStroke = false
+    @State private var hasUserInteractedWithAddHoleMap = false
+
+    // MARK: - Temporary Positions
+    @State private var temporaryHolePosition: CLLocationCoordinate2D?
+    @State private var temporaryPosition: CLLocationCoordinate2D?
+    @State private var strokeToMove: Stroke?
+
+    // MARK: - Dialogs & Sheets
     @State private var showingEditMenu = false
     @State private var showingMoveHoleConfirmation = false
     @State private var showingAddTeeConfirmation = false
     @State private var showingEditYards = false
     @State private var showingEditPar = false
-    @State private var yardsInput = ""
-    @State private var parInput = ""
-    @State private var activeRound: Round?
     @State private var showingClubSelection = false
     @State private var showingStrokeDetails = false
-    @State private var selectedStrokeIndex: Int = 0
-    @State private var isAddingHole = false
-    @State private var temporaryHolePosition: CLLocationCoordinate2D?
-    @State private var useStandardMap = false
-    @State private var isMovingHoleManually = false
-    @State private var isAddingTeeManually = false
-    @State private var temporaryPosition: CLLocationCoordinate2D?
     @State private var showingCourseEditor = false
-    @State private var isMovingStroke = false
-    @State private var strokeToMove: Stroke?
-    @State private var savedMapRegion: MKCoordinateRegion?
-    @State private var isAddingPenaltyStroke = false
-    @State private var trajectoryHeading: Double? = nil // nil means default to hole direction
-    @State private var forceUserHoleView = false // Toggle between tee/hole and user/hole view
+
+    // MARK: - Input State
+    @State private var yardsInput = ""
+    @State private var parInput = ""
+    @State private var selectedStrokeIndex: Int = 0
+
+    // MARK: - Stroke Recording
+    @State private var trajectoryHeading: Double? = nil
+
+    // MARK: - Target Placement
     @State private var isPlacingTarget = false
     @State private var isDeleting = false
 
+    // MARK: - Initialization
     init(store: DataStore, course: Course, resumingRound: Round? = nil, startingHoleNumber: Int? = nil) {
         self.store = store
         self.course = course
@@ -45,6 +62,7 @@ struct HolePlayView: View {
         }
     }
 
+    // MARK: - Computed Properties
     private var currentCourse: Course {
         store.courses.first { $0.id == course.id } ?? course
     }
@@ -89,7 +107,7 @@ struct HolePlayView: View {
 
         let userCoord = userLocation.coordinate
         let holeCoord = hole.coordinate
-        return calculateBearing(from: userCoord, to: holeCoord)
+        return MapCalculations.calculateBearing(from: userCoord, to: holeCoord)
     }
 
     private var selectedStroke: Stroke? {
@@ -175,7 +193,7 @@ struct HolePlayView: View {
         }
 
         // Calculate bearing to hole
-        let bearingToHole = calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
+        let bearingToHole = MapCalculations.calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
 
         // Calculate offset: how much the aim direction differs from hole bearing
         let offset = (capturedHeading - bearingToHole + 360).truncatingRemainder(dividingBy: 360)
@@ -186,36 +204,14 @@ struct HolePlayView: View {
         return normalizedOffset
     }
 
-    private var floatingStrokeButton: some View {
-        Image(systemName: "plus")
-            .font(.title2)
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .frame(width: 60, height: 60)
-            .background(Color.green.opacity(0.95))
-            .clipShape(Circle())
-            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-            .opacity((locationManager.location == nil || activeRound == nil) ? 0.5 : 0.95)
-    }
-
-    private var floatingDetailsButton: some View {
-        Image(systemName: "plus")
-            .font(.title2)
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .frame(width: 60, height: 60)
-            .background(.yellow)
-            .clipShape(Circle())
-            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-            .opacity(strokesForCurrentHole.isEmpty ? 0.5 : 1.0)
-    }
-
+    // MARK: - View Components
     private var mainContent: some View {
         ZStack {
             if isAddingHole {
                 AddHoleMapView(
                     position: $position,
                     temporaryHolePosition: $temporaryHolePosition,
+                    hasUserInteracted: $hasUserInteractedWithAddHoleMap,
                     userLocation: locationManager.location,
                     heading: locationManager.heading,
                     useStandardMap: useStandardMap
@@ -347,10 +343,29 @@ struct HolePlayView: View {
                     onNext: nextHole,
                     onAddHole: startAddingNextHole
                 )
-                floatingButtons()
+                FloatingButtonsView(
+                    hasLocation: locationManager.location != nil,
+                    hasActiveRound: activeRound != nil,
+                    isCurrentHoleCompleted: isCurrentHoleCompleted,
+                    canUndo: canUndo,
+                    aimArrowRotation: aimArrowRotation,
+                    isPlacingTarget: isPlacingTarget,
+                    onFinishHole: finishCurrentHole,
+                    onAddPenaltyStroke: {
+                        saveCurrentMapRegion()
+                        isAddingPenaltyStroke = true
+                    },
+                    onRecordStroke: {
+                        showingClubSelection = true
+                    },
+                    onCaptureAimDirection: captureAimDirection,
+                    onToggleTargetPlacement: toggleTargetPlacement,
+                    onUndo: undoLastAction
+                )
             } else {
                 Color.clear
                     .onAppear {
+                        hasUserInteractedWithAddHoleMap = false
                         isAddingHole = true
                     }
             }
@@ -455,6 +470,7 @@ struct HolePlayView: View {
             ))
     }
 
+    // MARK: - Body
     var body: some View {
         contentWithModifiers
             .onAppear {
@@ -486,12 +502,14 @@ struct HolePlayView: View {
         }
         .onChange(of: locationManager.location) { _, newLocation in
             // When adding first hole and location becomes available, center the map
-            if isAddingHole && currentCourse.holes.isEmpty && newLocation != nil {
+            // Only auto-center if user hasn't started interacting with the map
+            if isAddingHole && currentCourse.holes.isEmpty && newLocation != nil && !hasUserInteractedWithAddHoleMap {
                 updateAddHoleMapPosition()
             }
         }
         .onChange(of: isAddingHole) { _, newValue in
             if newValue {
+                hasUserInteractedWithAddHoleMap = false
                 updateAddHoleMapPosition()
             } else {
                 updateMapPosition()
@@ -562,6 +580,7 @@ struct HolePlayView: View {
         }
     }
 
+    // MARK: - Navigation Functions
     private func previousHole() {
         guard let round = activeRound else { return }
         if currentHoleIndex > 0 {
@@ -591,6 +610,7 @@ struct HolePlayView: View {
             store.updateCurrentHoleIndex(for: round, newIndex: currentHoleIndex)
         } else {
             // No more holes, start adding a new one
+            hasUserInteractedWithAddHoleMap = false
             isAddingHole = true
         }
     }
@@ -603,6 +623,7 @@ struct HolePlayView: View {
         store.reopenHole(in: round, holeNumber: hole.number)
     }
 
+    // MARK: - Stroke Recording Functions
     private func captureAimDirection() {
         var heading: Double?
 
@@ -612,7 +633,7 @@ struct HolePlayView: View {
         } else if let userLocation = locationManager.location,
                   let hole = currentHole {
             // Fallback: Use bearing to hole + 45 degrees as simulated offset
-            let bearingToHole = calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
+            let bearingToHole = MapCalculations.calculateBearing(from: userLocation.coordinate, to: hole.coordinate)
             heading = (bearingToHole + 45).truncatingRemainder(dividingBy: 360)
         }
 
@@ -653,6 +674,7 @@ struct HolePlayView: View {
         }
     }
 
+    // MARK: - Map Region Functions
     private func saveCurrentMapRegion() {
         guard let hole = currentHole else { return }
 
@@ -685,7 +707,7 @@ struct HolePlayView: View {
         let center = CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon)
 
         // Bearing from start (tee/user) to hole so hole is at the "top" of the screen
-        let bearing = calculateBearing(from: startCoord, to: holeCoord)
+        let bearing = MapCalculations.calculateBearing(from: startCoord, to: holeCoord)
 
         // Use a similar zoom logic to the regular view: expand based on distance
         let spanInMeters = max(distance * 1.8, 40.0)
@@ -703,6 +725,7 @@ struct HolePlayView: View {
         updateMapPosition()
     }
 
+    // MARK: - Hole Editing Functions
     private func moveCurrentHoleToUserLocation() {
         guard let hole = currentHole,
               let location = locationManager.location else { return }
@@ -721,7 +744,7 @@ struct HolePlayView: View {
               let location = locationManager.location else { return }
 
         // Use manual trajectory if set, otherwise calculate bearing to hole
-        let heading = trajectoryHeading ?? calculateBearing(from: location.coordinate, to: hole.coordinate)
+        let heading = trajectoryHeading ?? MapCalculations.calculateBearing(from: location.coordinate, to: hole.coordinate)
 
         store.addStroke(to: round, holeNumber: hole.number, coordinate: location.coordinate, club: club, trajectoryHeading: heading)
 
@@ -745,6 +768,7 @@ struct HolePlayView: View {
     private func startAddingNextHole() {
         isAddingHole = true
         temporaryHolePosition = nil
+        hasUserInteractedWithAddHoleMap = false
         updateAddHoleMapPosition()
     }
 
@@ -776,128 +800,6 @@ struct HolePlayView: View {
             center: userLocation.coordinate,
             span: MKCoordinateSpan(latitudeDelta: spanDegrees, longitudeDelta: spanDegrees)
         ))
-    }
-
-    @ViewBuilder
-    private func floatingButtons() -> some View {
-        ZStack {
-            // Right side buttons (bottom to top: stroke, penalty, finish)
-            VStack {
-                Spacer()
-                VStack(spacing: 12) {
-                    // Yellow button for finish hole (top)
-                    Button(action: finishCurrentHole) {
-                        Image(systemName: "flag.fill")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 60)
-                            .background(Color.yellow.opacity(0.95))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-                    }
-                    .disabled(activeRound == nil || isCurrentHoleCompleted)
-                    .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 0.95)
-
-                    // Orange button for penalty stroke
-                    Button(action: {
-                        saveCurrentMapRegion()
-                        isAddingPenaltyStroke = true
-                    }) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 60)
-                            .background(Color.orange.opacity(0.95))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-                    }
-                    .disabled(activeRound == nil || isCurrentHoleCompleted)
-                    .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 0.95)
-
-                    // Green button for new stroke (bottom)
-                    Button(action: {
-                        showingClubSelection = true
-                    }) {
-                        floatingStrokeButton
-                    }
-                    .disabled(locationManager.location == nil || activeRound == nil || isCurrentHoleCompleted)
-                    .opacity((locationManager.location == nil || activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 1.0)
-                }
-                .padding(.trailing, 20)
-                .padding(.bottom, 200)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-
-            // Left side buttons (bottom to top: undo, aim direction, target)
-            VStack {
-                Spacer()
-                HStack {
-                    VStack(spacing: 12) {
-                        // Target button (top)
-                        Button(action: toggleTargetPlacement) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white.opacity(0.95))
-                                    .frame(width: 60, height: 60)
-                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-
-                                if isPlacingTarget {
-                                    Circle()
-                                        .stroke(Color.yellow, lineWidth: 4)
-                                        .frame(width: 60, height: 60)
-                                }
-
-                                Image(systemName: "scope")
-                                    .font(.title2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.black)
-                            }
-                        }
-
-                        // Blue button for aim direction
-                        Button(action: captureAimDirection) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.95))
-                                    .frame(width: 60, height: 60)
-                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-
-                                Image(systemName: "location.north.fill")
-                                    .font(.title2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                                    .rotationEffect(.degrees(aimArrowRotation))
-                            }
-                        }
-                        .disabled(activeRound == nil || isCurrentHoleCompleted)
-                        .opacity((activeRound == nil || isCurrentHoleCompleted) ? 0.3 : 0.95)
-
-                        // Undo button (bottom)
-                        Button(action: undoLastAction) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.red.opacity(0.95))
-                                    .frame(width: 60, height: 60)
-                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
-
-                                Image(systemName: "arrow.uturn.backward")
-                                    .font(.title2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .disabled(!canUndo)
-                        .opacity(canUndo ? 0.95 : 0.9)
-                    }
-                    .padding(.leading, 20)
-
-                    Spacer()
-                }
-                .padding(.bottom, 200)
-            }
-        }
     }
 
     private func updateMapPosition() {
@@ -933,7 +835,7 @@ struct HolePlayView: View {
             }
 
             // Calculate bearing and distance from starting point to hole
-            let bearing = calculateBearing(from: startCoord, to: holeCoord)
+            let bearing = MapCalculations.calculateBearing(from: startCoord, to: holeCoord)
             let startLocation = CLLocation(latitude: startCoord.latitude, longitude: startCoord.longitude)
             let distance = max(startLocation.distance(from: holeLocation), 40.0)
 
@@ -958,7 +860,7 @@ struct HolePlayView: View {
         } else if let teeCoord = hole.teeCoordinate {
             // No user location but tee exists - show tee to hole view
             let holeCoord = hole.coordinate
-            let bearing = calculateBearing(from: teeCoord, to: holeCoord)
+            let bearing = MapCalculations.calculateBearing(from: teeCoord, to: holeCoord)
             let teeLocation = CLLocation(latitude: teeCoord.latitude, longitude: teeCoord.longitude)
             let holeLocation = CLLocation(latitude: holeCoord.latitude, longitude: holeCoord.longitude)
             let distance = max(teeLocation.distance(from: holeLocation), 40.0)
@@ -983,255 +885,5 @@ struct HolePlayView: View {
                 span: MKCoordinateSpan(latitudeDelta: 0.0005, longitudeDelta: 0.0005)
             ))
         }
-    }
-
-    private func calculateBearing(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> CLLocationDirection {
-        let lat1 = from.latitude * .pi / 180.0
-        let lon1 = from.longitude * .pi / 180.0
-        let lat2 = to.latitude * .pi / 180.0
-        let lon2 = to.longitude * .pi / 180.0
-
-        let dLon = lon2 - lon1
-
-        let y = sin(dLon) * cos(lat2)
-        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-        let bearing = atan2(y, x)
-
-        // Convert from radians to degrees
-        let bearingDegrees = bearing * 180.0 / .pi
-
-        // Normalize to 0-360
-        return (bearingDegrees + 360.0).truncatingRemainder(dividingBy: 360.0)
-    }
-
-    private func calculateDestination(from: CLLocationCoordinate2D, bearing: Double, distanceMeters: Double) -> CLLocationCoordinate2D {
-        let earthRadius = 6371000.0 // meters
-        let bearingRadians = bearing * .pi / 180.0
-        let lat1 = from.latitude * .pi / 180.0
-        let lon1 = from.longitude * .pi / 180.0
-
-        let lat2 = asin(sin(lat1) * cos(distanceMeters / earthRadius) +
-                       cos(lat1) * sin(distanceMeters / earthRadius) * cos(bearingRadians))
-        let lon2 = lon1 + atan2(sin(bearingRadians) * sin(distanceMeters / earthRadius) * cos(lat1),
-                                cos(distanceMeters / earthRadius) - sin(lat1) * sin(lat2))
-
-        return CLLocationCoordinate2D(
-            latitude: lat2 * 180.0 / .pi,
-            longitude: lon2 * 180.0 / .pi
-        )
-    }
-}
-
-struct StrokeDetailsView: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var store: DataStore
-    let round: Round
-    let strokes: [Stroke]
-    @Binding var selectedStrokeIndex: Int
-    @Binding var isMovingStroke: Bool
-    @Binding var strokeToMove: Stroke?
-    @Binding var temporaryPosition: CLLocationCoordinate2D?
-    @Binding var position: MapCameraPosition
-    @Binding var savedMapRegion: MKCoordinateRegion?
-
-    @State private var showingRenumberAlert = false
-    @State private var newStrokeNumber = ""
-
-    private var currentStroke: Stroke? {
-        guard selectedStrokeIndex < strokes.count else { return nil }
-        return strokes[selectedStrokeIndex]
-    }
-
-    private func saveCurrentMapRegion() {
-        guard let stroke = currentStroke else { return }
-        savedMapRegion = MKCoordinateRegion(
-            center: stroke.coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.0005, longitudeDelta: 0.0005)
-        )
-    }
-
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-            VStack(spacing: 20) {
-                // Stroke navigation
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            if selectedStrokeIndex > 0 {
-                                saveCurrentStroke()
-                                selectedStrokeIndex -= 1
-                                loadStrokeData()
-                            }
-                        }) {
-                            Label("Previous", systemImage: "chevron.left")
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(selectedStrokeIndex == 0)
-
-                        Button(action: {
-                            guard let stroke = currentStroke else { return }
-                            newStrokeNumber = "\(stroke.strokeNumber)"
-                            showingRenumberAlert = true
-                        }) {
-                            VStack(spacing: 2) {
-                                Text("Stroke \(selectedStrokeIndex + 1)")
-                                    .font(.headline)
-                                Text("of \(strokes.count)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(currentStroke?.isPenalty == true)
-
-                        Button(action: {
-                            if selectedStrokeIndex < strokes.count - 1 {
-                                saveCurrentStroke()
-                                selectedStrokeIndex += 1
-                                loadStrokeData()
-                            }
-                        }) {
-                            Label("Next", systemImage: "chevron.right")
-                                .labelStyle(.titleAndIcon)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(selectedStrokeIndex >= strokes.count - 1)
-                    }
-                }
-                .padding(.horizontal)
-
-                // Move stroke button
-                if currentStroke?.isPenalty != true {
-                    Button(action: {
-                        guard let stroke = currentStroke else { return }
-                        saveCurrentMapRegion()
-                        strokeToMove = stroke
-                        temporaryPosition = stroke.coordinate
-                        isMovingStroke = true
-                        dismiss()
-                    }) {
-                        Label("Move Stroke Position", systemImage: "location")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.orange.opacity(0.2))
-                            .foregroundColor(.orange)
-                            .cornerRadius(10)
-                    }
-                    .padding(.horizontal)
-                }
-
-                // Delete stroke button
-                if let _ = currentStroke {
-                    Button(role: .destructive) {
-                        guard let stroke = currentStroke else { return }
-                        // Remove the stroke from the round in the data store
-                        store.deleteStroke(in: round, stroke: stroke)
-                        dismiss()
-                    } label: {
-                        Label("Delete Stroke", systemImage: "arrow.uturn.backward")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    }
-                    .padding(.horizontal)
-                }
-
-                // Penalty stroke indicator
-                if currentStroke?.isPenalty == true {
-                    VStack(spacing: 8) {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                            Text("Penalty Stroke")
-                                .font(.headline)
-                                .foregroundColor(.red)
-                        }
-                        Text("This is an automatic penalty stroke. All details are disabled.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(10)
-                    .padding(.horizontal)
-                }
-
-                // Action buttons
-                HStack(spacing: 12) {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Text("Cancel")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.gray.opacity(0.3))
-                            .foregroundColor(.primary)
-                            .cornerRadius(10)
-                    }
-
-                    Button(action: {
-                        saveCurrentStroke()
-                        dismiss()
-                    }) {
-                        Text("Save")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                    }
-                    .disabled(currentStroke?.isPenalty == true)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
-            }
-            .padding(.top, 20)
-            }
-            .navigationTitle("Stroke Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                loadStrokeData()
-            }
-            .alert("Renumber Stroke", isPresented: $showingRenumberAlert) {
-                TextField("Stroke number", text: $newStrokeNumber)
-                    .keyboardType(.numberPad)
-                Button("Cancel", role: .cancel) {
-                    newStrokeNumber = ""
-                }
-                Button("Update") {
-                    if let stroke = currentStroke,
-                       let number = Int(newStrokeNumber),
-                       number > 0,
-                       number <= strokes.count {
-                        store.renumberStroke(in: round, stroke: stroke, newNumber: number)
-                        // Update selected index if needed
-                        if number - 1 != selectedStrokeIndex {
-                            selectedStrokeIndex = number - 1
-                        }
-                        loadStrokeData()
-                    }
-                    newStrokeNumber = ""
-                }
-            } message: {
-                Text("Enter new stroke number (1-\(strokes.count))")
-            }
-        }
-    }
-
-    private func loadStrokeData() {
-        // No data to load anymore
-    }
-
-    private func saveCurrentStroke() {
-        // No stroke details to save anymore
     }
 }

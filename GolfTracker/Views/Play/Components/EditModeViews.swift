@@ -6,6 +6,7 @@ import MapKit
 struct AddHoleMapView: View {
     @Binding var position: MapCameraPosition
     @Binding var temporaryHolePosition: CLLocationCoordinate2D?
+    @Binding var hasUserInteracted: Bool
     let userLocation: CLLocation?
     let heading: CLLocationDirection?
     let useStandardMap: Bool
@@ -30,7 +31,12 @@ struct AddHoleMapView: View {
                 }
             }
             .mapStyle(useStandardMap ? .standard : .hybrid)
+            .onMapCameraChange { context in
+                // Mark as interacted when user pans the map
+                hasUserInteracted = true
+            }
             .onTapGesture { screenCoord in
+                hasUserInteracted = true
                 if let coordinate = proxy.convert(screenCoord, from: .local) {
                     temporaryHolePosition = coordinate
                 }
