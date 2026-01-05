@@ -146,15 +146,25 @@ struct AccelTestView: View {
 
                 Divider()
 
+                // Swing Detection Toggle
+                HStack {
+                    Text("Live_detect:")
+                    Button(swingDetector.swingDetectionEnabled ? "ON" : "OFF") {
+                        swingDetector.swingDetectionEnabled.toggle()
+                    }
+                }
+
+                Divider()
+
                 // Threshold controls
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Thresh: \(String(format: "%.1f", swingDetector.accelerationThreshold)) G")
                     HStack {
                         Button("-") {
-                            swingDetector.accelerationThreshold = max(1.0, swingDetector.accelerationThreshold - 0.5)
+                            swingDetector.accelerationThreshold = max(1.0, swingDetector.accelerationThreshold - 0.1)
                         }
                         Button("+") {
-                            swingDetector.accelerationThreshold = min(10.0, swingDetector.accelerationThreshold + 0.5)
+                            swingDetector.accelerationThreshold = min(10.0, swingDetector.accelerationThreshold + 0.1)
                         }
                     }
                 }

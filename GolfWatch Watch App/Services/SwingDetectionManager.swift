@@ -10,6 +10,7 @@ class SwingDetectionManager: ObservableObject {
 
     private let motionManager = CMMotionManager()
     private let locationManager = LocationManager.shared
+    private let motionQueue = OperationQueue()
 
     @Published var lastDetectedSwing: DetectedSwing?
     @Published var isMonitoring: Bool = false
@@ -64,6 +65,7 @@ class SwingDetectionManager: ObservableObject {
     @Published var accelerationThreshold: Double = 2.5 // G-force threshold (configurable)
     @Published var timeAboveThreshold: TimeInterval = 0.1 // Time required above threshold (configurable)
     @Published var isFrozen: Bool = false // Whether min/max tracking is frozen
+    @Published var swingDetectionEnabled: Bool = false // Toggle swing detection on/off
 
     struct RecordedDataPoint: Codable {
         let timestamp: Date
@@ -126,10 +128,11 @@ class SwingDetectionManager: ObservableObject {
             return
         }
 
-        print("⌚ [SwingDetection] Starting swing detection")
+        print("⌚ [SwingDetection] Starting swing detection on background queue")
         isMonitoring = true
 
-        motionManager.startDeviceMotionUpdates(to: .main) { [weak self] data, error in
+        // Use background queue so updates continue when screen is off
+        motionManager.startDeviceMotionUpdates(to: motionQueue) { [weak self] data, error in
             guard let self = self, let data = data else { return }
 
             self.processDeviceMotion(data)
@@ -169,49 +172,51 @@ class SwingDetectionManager: ObservableObject {
         let r = data.attitude.roll
         let y = data.attitude.yaw
 
-        // Update current values
-        userAccelMag = uaMag
-        userAccelX = abs(uax)
-        userAccelY = abs(uay)
-        userAccelZ = abs(uaz)
+        // Update current values on main thread for UI binding
+        DispatchQueue.main.async {
+            self.userAccelMag = uaMag
+            self.userAccelX = uax
+            self.userAccelY = uay
+            self.userAccelZ = uaz
 
-        rotationMag = rMag
-        rotationX = abs(rx)
-        rotationY = abs(ry)
-        rotationZ = abs(rz)
+            self.rotationMag = rMag
+            self.rotationX = rx
+            self.rotationY = ry
+            self.rotationZ = rz
 
-        gravityX = gx
-        gravityY = gy
-        gravityZ = gz
+            self.gravityX = gx
+            self.gravityY = gy
+            self.gravityZ = gz
 
-        pitch = p
-        roll = r
-        yaw = y
+            self.pitch = p
+            self.roll = r
+            self.yaw = y
 
-        // Update min/max tracking (only if not frozen)
-        if !isFrozen {
-            minUserAccelX = min(minUserAccelX, uax)
-            maxUserAccelX = max(maxUserAccelX, uax)
-            minUserAccelY = min(minUserAccelY, uay)
-            maxUserAccelY = max(maxUserAccelY, uay)
-            minUserAccelZ = min(minUserAccelZ, uaz)
-            maxUserAccelZ = max(maxUserAccelZ, uaz)
-            maxUserAccelMag = max(maxUserAccelMag, uaMag)
+            // Update min/max tracking (only if not frozen)
+            if !self.isFrozen {
+                self.minUserAccelX = min(self.minUserAccelX, uax)
+                self.maxUserAccelX = max(self.maxUserAccelX, uax)
+                self.minUserAccelY = min(self.minUserAccelY, uay)
+                self.maxUserAccelY = max(self.maxUserAccelY, uay)
+                self.minUserAccelZ = min(self.minUserAccelZ, uaz)
+                self.maxUserAccelZ = max(self.maxUserAccelZ, uaz)
+                self.maxUserAccelMag = max(self.maxUserAccelMag, uaMag)
 
-            minRotationX = min(minRotationX, rx)
-            maxRotationX = max(maxRotationX, rx)
-            minRotationY = min(minRotationY, ry)
-            maxRotationY = max(maxRotationY, ry)
-            minRotationZ = min(minRotationZ, rz)
-            maxRotationZ = max(maxRotationZ, rz)
-            maxRotationMag = max(maxRotationMag, rMag)
+                self.minRotationX = min(self.minRotationX, rx)
+                self.maxRotationX = max(self.maxRotationX, rx)
+                self.minRotationY = min(self.minRotationY, ry)
+                self.maxRotationY = max(self.maxRotationY, ry)
+                self.minRotationZ = min(self.minRotationZ, rz)
+                self.maxRotationZ = max(self.maxRotationZ, rz)
+                self.maxRotationMag = max(self.maxRotationMag, rMag)
 
-            minPitch = min(minPitch, p)
-            maxPitch = max(maxPitch, p)
-            minRoll = min(minRoll, r)
-            maxRoll = max(maxRoll, r)
-            minYaw = min(minYaw, y)
-            maxYaw = max(maxYaw, y)
+                self.minPitch = min(self.minPitch, p)
+                self.maxPitch = max(self.maxPitch, p)
+                self.minRoll = min(self.minRoll, r)
+                self.maxRoll = max(self.maxRoll, r)
+                self.minYaw = min(self.minYaw, y)
+                self.maxYaw = max(self.maxYaw, y)
+            }
         }
 
         // Record data if recording is active
@@ -237,24 +242,27 @@ class SwingDetectionManager: ObservableObject {
         }
 
         // Track time above threshold (using user acceleration magnitude)
-        if uaMag > accelerationThreshold {
-            if aboveThresholdStartTime == nil {
-                aboveThresholdStartTime = now
-            } else if let startTime = aboveThresholdStartTime {
-                let timeAbove = now.timeIntervalSince(startTime)
-                if timeAbove >= timeAboveThreshold {
-                    // Has been above threshold for required duration
-                    detectSwing(magnitude: uaMag)
-                    lastTimeAboveThreshold = timeAbove
-                    aboveThresholdStartTime = nil
+        // DISABLED FOR TESTING - will re-enable after testing phase
+        if swingDetectionEnabled {
+            if uaMag > accelerationThreshold {
+                if aboveThresholdStartTime == nil {
+                    aboveThresholdStartTime = now
+                } else if let startTime = aboveThresholdStartTime {
+                    let timeAbove = now.timeIntervalSince(startTime)
+                    if timeAbove >= timeAboveThreshold {
+                        // Has been above threshold for required duration
+                        detectSwing(magnitude: uaMag)
+                        lastTimeAboveThreshold = timeAbove
+                        aboveThresholdStartTime = nil
+                    }
                 }
+            } else {
+                // Fell below threshold - save duration if we were tracking
+                if let startTime = aboveThresholdStartTime {
+                    lastTimeAboveThreshold = now.timeIntervalSince(startTime)
+                }
+                aboveThresholdStartTime = nil
             }
-        } else {
-            // Fell below threshold - save duration if we were tracking
-            if let startTime = aboveThresholdStartTime {
-                lastTimeAboveThreshold = now.timeIntervalSince(startTime)
-            }
-            aboveThresholdStartTime = nil
         }
     }
 
