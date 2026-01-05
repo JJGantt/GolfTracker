@@ -238,7 +238,11 @@ class SwingDetectionManager: ObservableObject {
                 roll: r,
                 yaw: y
             )
-            recordedDataPoints.append(dataPoint)
+
+            // Must update @Published property on main thread
+            DispatchQueue.main.async {
+                self.recordedDataPoints.append(dataPoint)
+            }
         }
 
         // Track time above threshold (using user acceleration magnitude)
