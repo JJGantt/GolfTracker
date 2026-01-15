@@ -21,6 +21,10 @@ class SwingDetectionManager: ObservableObject {
     @Published var lastDetectedSwing: DetectedSwing?
     @Published var isMonitoring: Bool = false
 
+    // Captured aim direction (set by blue button in ActiveRoundView)
+    // This gets stored in DetectedSwing when a swing is detected
+    @Published var capturedAimDirection: Double?
+
     // User Acceleration (gravity removed)
     @Published var userAccelMag: Double = 0.0
     @Published var userAccelX: Double = 0.0
@@ -76,7 +80,7 @@ class SwingDetectionManager: ObservableObject {
     // Naive detect parameters
     @Published var accelerationThreshold: Double = 2.0 // G-force threshold
     @Published var accelTimeThreshold: TimeInterval = 0.0 // Time required above accel threshold
-    @Published var rotationThreshold: Double = 10.0 // rad/s threshold
+    @Published var rotationThreshold: Double = 20.0 // rad/s threshold
     @Published var rotationTimeThreshold: TimeInterval = 0.0 // Time required above rotation threshold
 
     struct RecordedDataPoint: Codable {
@@ -116,6 +120,7 @@ class SwingDetectionManager: ObservableObject {
         let location: CLLocationCoordinate2D
         let timestamp: Date
         let peakAcceleration: Double
+        let trajectoryHeading: Double? // Captured aim direction at swing detection time
     }
 
     private init() {
@@ -288,12 +293,13 @@ class SwingDetectionManager: ObservableObject {
                         }
                     }
                 } else {
-                    // Accel dropped below threshold while in rotation window
+                    // Accel dropped below threshold - reset timer but NOT the condition
+                    // Once accel condition is met within this rotation window, it stays met
                     if let startTime = accelAboveThresholdStartTime {
                         lastTimeAboveThreshold = now.timeIntervalSince(startTime)
                     }
                     accelAboveThresholdStartTime = nil
-                    accelConditionMet = false
+                    // accelConditionMet stays as-is (latches true once satisfied)
                 }
             } else {
                 // Rotation dropped below threshold - reset EVERYTHING
@@ -332,13 +338,17 @@ class SwingDetectionManager: ObservableObject {
 
         lastSwingDetectionTime = Date()
 
-        print("⌚ [SwingDetection] Swing detected! Accel: \(String(format: "%.2f", magnitude))G, Rotation: \(String(format: "%.2f", rotationMagnitude)) rad/s")
+        // Capture the aim direction at swing detection time (if user set one with blue button)
+        let aimDirection = capturedAimDirection
 
-        // Save the detected swing with peak acceleration
+        print("⌚ [SwingDetection] Swing detected! Accel: \(String(format: "%.2f", magnitude))G, Rotation: \(String(format: "%.2f", rotationMagnitude)) rad/s, Aim: \(aimDirection.map { String(format: "%.1f", $0) } ?? "default")")
+
+        // Save the detected swing with peak acceleration and captured aim direction
         let swing = DetectedSwing(
             location: location.coordinate,
             timestamp: Date(),
-            peakAcceleration: magnitude
+            peakAcceleration: magnitude,
+            trajectoryHeading: aimDirection
         )
 
         DispatchQueue.main.async {
@@ -360,6 +370,31 @@ class SwingDetectionManager: ObservableObject {
     func clearLastSwing() {
         lastDetectedSwing = nil
         print("⌚ [SwingDetection] Cleared last detected swing")
+    }
+
+    /// Simulate a swing for testing in simulator
+    func simulateSwing() {
+        guard let location = locationManager.location else {
+            print("⌚ [SwingDetection] Cannot simulate swing - no location available")
+            return
+        }
+
+        // Capture the aim direction at swing time (if user set one with blue button)
+        let aimDirection = capturedAimDirection
+
+        let swing = DetectedSwing(
+            location: location.coordinate,
+            timestamp: Date(),
+            peakAcceleration: 3.5, // Simulated peak acceleration
+            trajectoryHeading: aimDirection
+        )
+
+        DispatchQueue.main.async {
+            self.lastDetectedSwing = swing
+        }
+
+        playFeedback()
+        print("⌚ [SwingDetection] Simulated swing at \(location.coordinate)")
     }
 
     func toggleResetFreeze() {

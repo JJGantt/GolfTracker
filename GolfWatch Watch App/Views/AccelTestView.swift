@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 
 struct AccelTestView: View {
     @StateObject private var swingDetector = SwingDetectionManager.shared
@@ -11,6 +12,10 @@ struct AccelTestView: View {
                 Button(swingDetector.isFrozen ? "reset" : "freeze_exts") {
                     swingDetector.toggleResetFreeze()
                 }
+                
+                Button("add_detect") {
+                    swingDetector.simulateSwing()
+                }
 
                 // Recording controls right under freeze_opts
                 VStack(spacing: 4) {
@@ -19,6 +24,7 @@ struct AccelTestView: View {
                             .font(.caption2)
                     }
 
+     
                     Button(isRecording ? "Stop" : "Record") {
                         if isRecording {
                             stopRecording()
@@ -26,6 +32,9 @@ struct AccelTestView: View {
                             startRecording()
                         }
                     }
+
+
+                    
                 }
 
                 Divider()
@@ -239,11 +248,11 @@ struct AccelTestView: View {
                                 .font(.system(size: 12))
                             Spacer()
                             Button("-") {
-                                swingDetector.rotationThreshold = max(1.0, swingDetector.rotationThreshold - 1.0)
+                                swingDetector.rotationThreshold = max(1.0, swingDetector.rotationThreshold - 0.1)
                             }
                             .font(.system(size: 12))
                             Button("+") {
-                                swingDetector.rotationThreshold = min(30.0, swingDetector.rotationThreshold + 1.0)
+                                swingDetector.rotationThreshold = min(30.0, swingDetector.rotationThreshold + 0.1)
                             }
                             .font(.system(size: 12))
                         }
