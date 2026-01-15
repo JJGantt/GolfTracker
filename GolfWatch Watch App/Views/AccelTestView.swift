@@ -268,6 +268,14 @@ struct AccelTestView: View {
             }
             .padding()
         }
+        .onAppear {
+            // Start motion monitoring when view appears
+            swingDetector.startMonitoring()
+        }
+        .onDisappear {
+            // Stop motion monitoring when view disappears
+            swingDetector.stopMonitoring()
+        }
     }
 
     private func startRecording() {
