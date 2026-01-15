@@ -261,44 +261,49 @@ class SwingDetectionManager: ObservableObject {
 
         // Detection logic based on mode
         if detectionMode == .naiveDetect {
-            // Track acceleration condition
-            if uaMag > accelerationThreshold {
-                if accelAboveThresholdStartTime == nil {
-                    accelAboveThresholdStartTime = now
+            // Rotation above threshold creates the detection window
+            if rMag > rotationThreshold {
+                // Start or continue rotation window
+                if rotationAboveThresholdStartTime == nil {
+                    rotationAboveThresholdStartTime = now
                 }
-                if let startTime = accelAboveThresholdStartTime {
-                    let timeAbove = now.timeIntervalSince(startTime)
-                    if timeAbove >= accelTimeThreshold {
-                        accelConditionMet = true
+
+                // Track rotation time condition
+                if let rotStartTime = rotationAboveThresholdStartTime {
+                    let rotTimeAbove = now.timeIntervalSince(rotStartTime)
+                    if rotTimeAbove >= rotationTimeThreshold {
+                        rotationConditionMet = true
                     }
                 }
-            } else {
-                // Fell below threshold
-                if let startTime = accelAboveThresholdStartTime {
-                    lastTimeAboveThreshold = now.timeIntervalSince(startTime)
+
+                // Track acceleration WITHIN the rotation window (immediately, don't wait for rotation time)
+                if uaMag > accelerationThreshold {
+                    if accelAboveThresholdStartTime == nil {
+                        accelAboveThresholdStartTime = now
+                    }
+                    if let accelStartTime = accelAboveThresholdStartTime {
+                        let accelTimeAbove = now.timeIntervalSince(accelStartTime)
+                        if accelTimeAbove >= accelTimeThreshold {
+                            accelConditionMet = true
+                        }
+                    }
+                } else {
+                    // Accel dropped below threshold while in rotation window
+                    if let startTime = accelAboveThresholdStartTime {
+                        lastTimeAboveThreshold = now.timeIntervalSince(startTime)
+                    }
+                    accelAboveThresholdStartTime = nil
+                    accelConditionMet = false
                 }
+            } else {
+                // Rotation dropped below threshold - reset EVERYTHING
+                rotationAboveThresholdStartTime = nil
+                rotationConditionMet = false
                 accelAboveThresholdStartTime = nil
                 accelConditionMet = false
             }
 
-            // Track rotation condition
-            if rMag > rotationThreshold {
-                if rotationAboveThresholdStartTime == nil {
-                    rotationAboveThresholdStartTime = now
-                }
-                if let startTime = rotationAboveThresholdStartTime {
-                    let timeAbove = now.timeIntervalSince(startTime)
-                    if timeAbove >= rotationTimeThreshold {
-                        rotationConditionMet = true
-                    }
-                }
-            } else {
-                // Fell below threshold
-                rotationAboveThresholdStartTime = nil
-                rotationConditionMet = false
-            }
-
-            // Detect swing when BOTH conditions are met
+            // Detect swing when BOTH conditions are met within the rotation window
             if accelConditionMet && rotationConditionMet {
                 detectSwing(magnitude: uaMag, rotationMagnitude: rMag)
                 // Reset conditions after detection
