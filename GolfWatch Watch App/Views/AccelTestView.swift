@@ -8,9 +8,24 @@ struct AccelTestView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
-                // Reset/Freeze toggle button at top
-                Button(swingDetector.isFrozen ? "Reset" : "Freeze") {
+                Button(swingDetector.isFrozen ? "reset" : "freeze_exts") {
                     swingDetector.toggleResetFreeze()
+                }
+
+                // Recording controls right under freeze_opts
+                VStack(spacing: 4) {
+                    if isRecording {
+                        Text("Recording: \(swingDetector.recordedDataPoints.count) samples")
+                            .font(.caption2)
+                    }
+
+                    Button(isRecording ? "Stop" : "Record") {
+                        if isRecording {
+                            stopRecording()
+                        } else {
+                            startRecording()
+                        }
+                    }
                 }
 
                 Divider()
@@ -146,58 +161,106 @@ struct AccelTestView: View {
 
                 Divider()
 
-                // Swing Detection Toggle
-                HStack {
-                    Text("Live_detect:")
-                    Button(swingDetector.swingDetectionEnabled ? "ON" : "OFF") {
-                        swingDetector.swingDetectionEnabled.toggle()
+                // Detection Mode - Radio buttons
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Mode")
+                        .font(.caption)
+
+                    // Off option
+                    Button(action: { swingDetector.detectionMode = .off }) {
+                        HStack {
+                            Image(systemName: swingDetector.detectionMode == .off ? "circle.fill" : "circle")
+                                .font(.system(size: 12))
+                            Text("Off")
+                                .font(.system(size: 14))
+                            Spacer()
+                        }
                     }
+                    .buttonStyle(PlainButtonStyle())
+
+                    // Naive option
+                    Button(action: { swingDetector.detectionMode = .naiveDetect }) {
+                        HStack {
+                            Image(systemName: swingDetector.detectionMode == .naiveDetect ? "circle.fill" : "circle")
+                                .font(.system(size: 12))
+                            Text("naive_detect")
+                                .font(.system(size: 14))
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
 
                 Divider()
 
-                // Threshold controls
+                // Parameters section - always visible
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Thresh: \(String(format: "%.1f", swingDetector.accelerationThreshold)) G")
-                    HStack {
-                        Button("-") {
-                            swingDetector.accelerationThreshold = max(1.0, swingDetector.accelerationThreshold - 0.1)
+                    Text("Parameters")
+                        .font(.caption)
+
+                    if swingDetector.detectionMode == .off {
+                        Text("N/A")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    } else {
+                        // Accel threshold
+                        HStack {
+                            Text("Accel: \(String(format: "%.1f", swingDetector.accelerationThreshold)) G")
+                                .font(.system(size: 12))
+                            Spacer()
+                            Button("-") {
+                                swingDetector.accelerationThreshold = max(0.1, swingDetector.accelerationThreshold - 0.1)
+                            }
+                            .font(.system(size: 12))
+                            Button("+") {
+                                swingDetector.accelerationThreshold = min(10.0, swingDetector.accelerationThreshold + 0.1)
+                            }
+                            .font(.system(size: 12))
                         }
-                        Button("+") {
-                            swingDetector.accelerationThreshold = min(10.0, swingDetector.accelerationThreshold + 0.1)
+
+                        // Accel time threshold
+                        HStack {
+                            Text("Accel T: \(String(format: "%.2f", swingDetector.accelTimeThreshold)) s")
+                                .font(.system(size: 12))
+                            Spacer()
+                            Button("-") {
+                                swingDetector.accelTimeThreshold = max(0.0, swingDetector.accelTimeThreshold - 0.01)
+                            }
+                            .font(.system(size: 12))
+                            Button("+") {
+                                swingDetector.accelTimeThreshold = min(1.0, swingDetector.accelTimeThreshold + 0.01)
+                            }
+                            .font(.system(size: 12))
                         }
-                    }
-                }
 
-                Divider()
-
-                // Time above threshold controls
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Time: \(String(format: "%.2f", swingDetector.timeAboveThreshold)) s")
-                    HStack {
-                        Button("-") {
-                            swingDetector.timeAboveThreshold = max(0.0, swingDetector.timeAboveThreshold - 0.01)
+                        // Rotation threshold
+                        HStack {
+                            Text("Rot: \(String(format: "%.1f", swingDetector.rotationThreshold)) r/s")
+                                .font(.system(size: 12))
+                            Spacer()
+                            Button("-") {
+                                swingDetector.rotationThreshold = max(1.0, swingDetector.rotationThreshold - 1.0)
+                            }
+                            .font(.system(size: 12))
+                            Button("+") {
+                                swingDetector.rotationThreshold = min(30.0, swingDetector.rotationThreshold + 1.0)
+                            }
+                            .font(.system(size: 12))
                         }
-                        Button("+") {
-                            swingDetector.timeAboveThreshold = min(1.0, swingDetector.timeAboveThreshold + 0.01)
-                        }
-                    }
-                }
 
-                Divider()
-
-                // Recording controls
-                VStack(spacing: 4) {
-                    if isRecording {
-                        Text("Recording: \(swingDetector.recordedDataPoints.count) samples")
-                            .font(.caption2)
-                    }
-
-                    Button(isRecording ? "Stop" : "Record") {
-                        if isRecording {
-                            stopRecording()
-                        } else {
-                            startRecording()
+                        // Rotation time threshold
+                        HStack {
+                            Text("Rot T: \(String(format: "%.2f", swingDetector.rotationTimeThreshold)) s")
+                                .font(.system(size: 12))
+                            Spacer()
+                            Button("-") {
+                                swingDetector.rotationTimeThreshold = max(0.0, swingDetector.rotationTimeThreshold - 0.01)
+                            }
+                            .font(.system(size: 12))
+                            Button("+") {
+                                swingDetector.rotationTimeThreshold = min(1.0, swingDetector.rotationTimeThreshold + 0.01)
+                            }
+                            .font(.system(size: 12))
                         }
                     }
                 }

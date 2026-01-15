@@ -5,6 +5,12 @@ import Combine
 import WatchKit
 import WatchConnectivity
 
+// Detection mode enum
+enum DetectionMode: String, CaseIterable {
+    case off = "Off"
+    case naiveDetect = "Naive"
+}
+
 class SwingDetectionManager: ObservableObject {
     static let shared = SwingDetectionManager()
 
@@ -62,10 +68,16 @@ class SwingDetectionManager: ObservableObject {
     @Published var maxYaw: Double = 0.0
 
     @Published var lastTimeAboveThreshold: TimeInterval = 0.0
-    @Published var accelerationThreshold: Double = 2.5 // G-force threshold (configurable)
-    @Published var timeAboveThreshold: TimeInterval = 0.1 // Time required above threshold (configurable)
     @Published var isFrozen: Bool = false // Whether min/max tracking is frozen
-    @Published var swingDetectionEnabled: Bool = false // Toggle swing detection on/off
+
+    // Detection mode and parameters
+    @Published var detectionMode: DetectionMode = .off
+
+    // Naive detect parameters
+    @Published var accelerationThreshold: Double = 2.0 // G-force threshold
+    @Published var accelTimeThreshold: TimeInterval = 0.0 // Time required above accel threshold
+    @Published var rotationThreshold: Double = 10.0 // rad/s threshold
+    @Published var rotationTimeThreshold: TimeInterval = 0.0 // Time required above rotation threshold
 
     struct RecordedDataPoint: Codable {
         let timestamp: Date
@@ -91,9 +103,11 @@ class SwingDetectionManager: ObservableObject {
     private let updateInterval: TimeInterval = 0.02 // 50 Hz sampling rate
     private let maxAccelWindow: TimeInterval = 5.0 // Track max over 5 seconds
 
-
-    // Track time above threshold for swing detection
-    private var aboveThresholdStartTime: Date?
+    // Track time above threshold for swing detection (separate for accel and rotation)
+    private var accelAboveThresholdStartTime: Date?
+    private var rotationAboveThresholdStartTime: Date?
+    private var accelConditionMet: Bool = false
+    private var rotationConditionMet: Bool = false
 
     // Recording state
     private var isRecording: Bool = false
@@ -245,34 +259,60 @@ class SwingDetectionManager: ObservableObject {
             }
         }
 
-        // Track time above threshold (using user acceleration magnitude)
-        // DISABLED FOR TESTING - will re-enable after testing phase
-        if swingDetectionEnabled {
+        // Detection logic based on mode
+        if detectionMode == .naiveDetect {
+            // Track acceleration condition
             if uaMag > accelerationThreshold {
-                if aboveThresholdStartTime == nil {
-                    aboveThresholdStartTime = now
-                } else if let startTime = aboveThresholdStartTime {
+                if accelAboveThresholdStartTime == nil {
+                    accelAboveThresholdStartTime = now
+                }
+                if let startTime = accelAboveThresholdStartTime {
                     let timeAbove = now.timeIntervalSince(startTime)
-                    if timeAbove >= timeAboveThreshold {
-                        // Has been above threshold for required duration
-                        detectSwing(magnitude: uaMag)
-                        lastTimeAboveThreshold = timeAbove
-                        aboveThresholdStartTime = nil
+                    if timeAbove >= accelTimeThreshold {
+                        accelConditionMet = true
                     }
                 }
             } else {
-                // Fell below threshold - save duration if we were tracking
-                if let startTime = aboveThresholdStartTime {
+                // Fell below threshold
+                if let startTime = accelAboveThresholdStartTime {
                     lastTimeAboveThreshold = now.timeIntervalSince(startTime)
                 }
-                aboveThresholdStartTime = nil
+                accelAboveThresholdStartTime = nil
+                accelConditionMet = false
+            }
+
+            // Track rotation condition
+            if rMag > rotationThreshold {
+                if rotationAboveThresholdStartTime == nil {
+                    rotationAboveThresholdStartTime = now
+                }
+                if let startTime = rotationAboveThresholdStartTime {
+                    let timeAbove = now.timeIntervalSince(startTime)
+                    if timeAbove >= rotationTimeThreshold {
+                        rotationConditionMet = true
+                    }
+                }
+            } else {
+                // Fell below threshold
+                rotationAboveThresholdStartTime = nil
+                rotationConditionMet = false
+            }
+
+            // Detect swing when BOTH conditions are met
+            if accelConditionMet && rotationConditionMet {
+                detectSwing(magnitude: uaMag, rotationMagnitude: rMag)
+                // Reset conditions after detection
+                accelConditionMet = false
+                rotationConditionMet = false
+                accelAboveThresholdStartTime = nil
+                rotationAboveThresholdStartTime = nil
             }
         }
     }
 
     private var lastSwingDetectionTime: Date?
 
-    private func detectSwing(magnitude: Double) {
+    private func detectSwing(magnitude: Double, rotationMagnitude: Double = 0) {
         // Debounce: Don't detect another swing within 0.5 seconds of the last one
         if let lastTime = lastSwingDetectionTime,
            Date().timeIntervalSince(lastTime) < 0.5 {
@@ -287,7 +327,7 @@ class SwingDetectionManager: ObservableObject {
 
         lastSwingDetectionTime = Date()
 
-        print("⌚ [SwingDetection] Swing detected! Magnitude: \(magnitude) G")
+        print("⌚ [SwingDetection] Swing detected! Accel: \(String(format: "%.2f", magnitude))G, Rotation: \(String(format: "%.2f", rotationMagnitude)) rad/s")
 
         // Save the detected swing with peak acceleration
         let swing = DetectedSwing(
@@ -295,9 +335,12 @@ class SwingDetectionManager: ObservableObject {
             timestamp: Date(),
             peakAcceleration: magnitude
         )
-        lastDetectedSwing = swing
 
-        // Play haptic and sound feedback
+        DispatchQueue.main.async {
+            self.lastDetectedSwing = swing
+        }
+
+        // Play haptic feedback
         playFeedback()
     }
 
@@ -401,8 +444,11 @@ class SwingDetectionManager: ObservableObject {
             "type": "motionData",
             "csv": csv,
             "sampleCount": recordedDataPoints.count,
-            "threshold": accelerationThreshold,
-            "timeAboveThreshold": timeAboveThreshold
+            "accelThreshold": accelerationThreshold,
+            "accelTimeThreshold": accelTimeThreshold,
+            "rotationThreshold": rotationThreshold,
+            "rotationTimeThreshold": rotationTimeThreshold,
+            "detectionMode": detectionMode.rawValue
         ]
 
         if WCSession.default.isReachable {
