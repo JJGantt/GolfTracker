@@ -9,6 +9,10 @@ struct AccelTestView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
+                Button("Exit") {
+                    dismiss()
+                }
+
                 Button(swingDetector.isFrozen ? "reset" : "freeze_exts") {
                     swingDetector.toggleResetFreeze()
                 }
