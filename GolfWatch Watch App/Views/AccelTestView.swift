@@ -180,7 +180,7 @@ struct AccelTestView: View {
                         .font(.caption)
 
                     // Off option
-                    Button(action: { swingDetector.detectionMode = .off }) {
+                    Button(action: { swingDetector.detectionMode = .off; swingDetector.resetToIdle() }) {
                         HStack {
                             Image(systemName: swingDetector.detectionMode == .off ? "circle.fill" : "circle")
                                 .font(.system(size: 12))
@@ -192,7 +192,7 @@ struct AccelTestView: View {
                     .buttonStyle(PlainButtonStyle())
 
                     // Naive option
-                    Button(action: { swingDetector.detectionMode = .naiveDetect }) {
+                    Button(action: { swingDetector.detectionMode = .naiveDetect; swingDetector.resetToIdle() }) {
                         HStack {
                             Image(systemName: swingDetector.detectionMode == .naiveDetect ? "circle.fill" : "circle")
                                 .font(.system(size: 12))
@@ -204,7 +204,7 @@ struct AccelTestView: View {
                     .buttonStyle(PlainButtonStyle())
 
                     // Smart option
-                    Button(action: { swingDetector.detectionMode = .smartDetect }) {
+                    Button(action: { swingDetector.detectionMode = .smartDetect; swingDetector.resetToIdle() }) {
                         HStack {
                             Image(systemName: swingDetector.detectionMode == .smartDetect ? "circle.fill" : "circle")
                                 .font(.system(size: 12))
