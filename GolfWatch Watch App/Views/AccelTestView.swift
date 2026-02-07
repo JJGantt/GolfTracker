@@ -202,79 +202,101 @@ struct AccelTestView: View {
                         }
                     }
                     .buttonStyle(PlainButtonStyle())
+
+                    // Smart option
+                    Button(action: { swingDetector.detectionMode = .smartDetect }) {
+                        HStack {
+                            Image(systemName: swingDetector.detectionMode == .smartDetect ? "circle.fill" : "circle")
+                                .font(.system(size: 12))
+                            Text("smart_detect")
+                                .font(.system(size: 14))
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
 
                 Divider()
 
-                // Parameters section - always visible
+                // Parameters section - mode-specific
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Parameters")
                         .font(.caption)
 
-                    if swingDetector.detectionMode == .off {
+                    switch swingDetector.detectionMode {
+                    case .off:
                         Text("N/A")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
-                    } else {
-                        // Accel threshold
-                        HStack {
-                            Text("Accel: \(String(format: "%.1f", swingDetector.accelerationThreshold)) G")
-                                .font(.system(size: 12))
-                            Spacer()
-                            Button("-") {
-                                swingDetector.accelerationThreshold = max(0.1, swingDetector.accelerationThreshold - 0.1)
-                            }
-                            .font(.system(size: 12))
-                            Button("+") {
-                                swingDetector.accelerationThreshold = min(10.0, swingDetector.accelerationThreshold + 0.1)
-                            }
-                            .font(.system(size: 12))
-                        }
+                    case .naiveDetect:
+                        paramRow("Accel:", value: swingDetector.accelerationThreshold, format: "%.1f", unit: "G",
+                                 dec: { swingDetector.accelerationThreshold = max(0.1, swingDetector.accelerationThreshold - 0.1) },
+                                 inc: { swingDetector.accelerationThreshold = min(10.0, swingDetector.accelerationThreshold + 0.1) })
+                        paramRow("Accel T:", value: swingDetector.accelTimeThreshold, format: "%.2f", unit: "s",
+                                 dec: { swingDetector.accelTimeThreshold = max(0.0, swingDetector.accelTimeThreshold - 0.01) },
+                                 inc: { swingDetector.accelTimeThreshold = min(1.0, swingDetector.accelTimeThreshold + 0.01) })
+                        paramRow("Rot:", value: swingDetector.rotationThreshold, format: "%.1f", unit: "r/s",
+                                 dec: { swingDetector.rotationThreshold = max(1.0, swingDetector.rotationThreshold - 0.1) },
+                                 inc: { swingDetector.rotationThreshold = min(30.0, swingDetector.rotationThreshold + 0.1) })
+                        paramRow("Rot T:", value: swingDetector.rotationTimeThreshold, format: "%.2f", unit: "s",
+                                 dec: { swingDetector.rotationTimeThreshold = max(0.0, swingDetector.rotationTimeThreshold - 0.01) },
+                                 inc: { swingDetector.rotationTimeThreshold = min(1.0, swingDetector.rotationTimeThreshold + 0.01) })
+                    case .smartDetect:
+                        // Putt state indicator
+                        Text("State: \(swingDetector.puttStateDescription)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.cyan)
 
-                        // Accel time threshold
-                        HStack {
-                            Text("Accel T: \(String(format: "%.2f", swingDetector.accelTimeThreshold)) s")
-                                .font(.system(size: 12))
-                            Spacer()
-                            Button("-") {
-                                swingDetector.accelTimeThreshold = max(0.0, swingDetector.accelTimeThreshold - 0.01)
-                            }
-                            .font(.system(size: 12))
-                            Button("+") {
-                                swingDetector.accelTimeThreshold = min(1.0, swingDetector.accelTimeThreshold + 0.01)
-                            }
-                            .font(.system(size: 12))
-                        }
+                        Text("Setup").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
+                        paramRow("Window:", value: swingDetector.puttWindowSeconds, format: "%.1f", unit: "s",
+                                 dec: { swingDetector.puttWindowSeconds = max(0.1, swingDetector.puttWindowSeconds - 0.1) },
+                                 inc: { swingDetector.puttWindowSeconds = min(5.0, swingDetector.puttWindowSeconds + 0.1) })
+                        paramRow("Std:", value: swingDetector.puttStabilityStdDeg, format: "%.1f", unit: "°",
+                                 dec: { swingDetector.puttStabilityStdDeg = max(1.0, swingDetector.puttStabilityStdDeg - 1.0) },
+                                 inc: { swingDetector.puttStabilityStdDeg = min(90.0, swingDetector.puttStabilityStdDeg + 1.0) })
+                        paramRow("Tol:", value: swingDetector.puttToleranceDeg, format: "%.2f", unit: "°",
+                                 dec: { swingDetector.puttToleranceDeg = max(0.5, swingDetector.puttToleranceDeg - 0.125) },
+                                 inc: { swingDetector.puttToleranceDeg = min(30.0, swingDetector.puttToleranceDeg + 0.125) })
+                        paramRow("MinDur:", value: swingDetector.puttMinDurationS, format: "%.1f", unit: "s",
+                                 dec: { swingDetector.puttMinDurationS = max(0.1, swingDetector.puttMinDurationS - 0.1) },
+                                 inc: { swingDetector.puttMinDurationS = min(3.0, swingDetector.puttMinDurationS + 0.1) })
+                        paramRow("P min:", value: swingDetector.puttPitchMinDeg, format: "%.1f", unit: "°",
+                                 dec: { swingDetector.puttPitchMinDeg -= 0.5 },
+                                 inc: { swingDetector.puttPitchMinDeg += 0.5 })
+                        paramRow("P max:", value: swingDetector.puttPitchMaxDeg, format: "%.1f", unit: "°",
+                                 dec: { swingDetector.puttPitchMaxDeg -= 0.5 },
+                                 inc: { swingDetector.puttPitchMaxDeg += 0.5 })
+                        paramRow("R min:", value: swingDetector.puttRollMinDeg, format: "%.1f", unit: "°",
+                                 dec: { swingDetector.puttRollMinDeg -= 0.5 },
+                                 inc: { swingDetector.puttRollMinDeg += 0.5 })
+                        paramRow("R max:", value: swingDetector.puttRollMaxDeg, format: "%.1f", unit: "°",
+                                 dec: { swingDetector.puttRollMaxDeg -= 0.5 },
+                                 inc: { swingDetector.puttRollMaxDeg += 0.5 })
 
-                        // Rotation threshold
-                        HStack {
-                            Text("Rot: \(String(format: "%.1f", swingDetector.rotationThreshold)) r/s")
-                                .font(.system(size: 12))
-                            Spacer()
-                            Button("-") {
-                                swingDetector.rotationThreshold = max(1.0, swingDetector.rotationThreshold - 0.1)
-                            }
-                            .font(.system(size: 12))
-                            Button("+") {
-                                swingDetector.rotationThreshold = min(30.0, swingDetector.rotationThreshold + 0.1)
-                            }
-                            .font(.system(size: 12))
-                        }
+                        Text("Rotation").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
+                        paramRow("Th1:", value: swingDetector.puttRotThreshold1, format: "%.2f", unit: "r/s",
+                                 dec: { swingDetector.puttRotThreshold1 = max(0.05, swingDetector.puttRotThreshold1 - 0.05) },
+                                 inc: { swingDetector.puttRotThreshold1 = min(5.0, swingDetector.puttRotThreshold1 + 0.05) })
+                        paramRow("Th2:", value: swingDetector.puttRotThreshold2, format: "%.2f", unit: "r/s",
+                                 dec: { swingDetector.puttRotThreshold2 = max(0.05, swingDetector.puttRotThreshold2 - 0.05) },
+                                 inc: { swingDetector.puttRotThreshold2 = min(5.0, swingDetector.puttRotThreshold2 + 0.05) })
+                        paramRow("Srch1:", value: swingDetector.puttRotSearchWindow1, format: "%.1f", unit: "s",
+                                 dec: { swingDetector.puttRotSearchWindow1 = max(0.5, swingDetector.puttRotSearchWindow1 - 0.5) },
+                                 inc: { swingDetector.puttRotSearchWindow1 = min(10.0, swingDetector.puttRotSearchWindow1 + 0.5) })
+                        paramRow("Srch2:", value: swingDetector.puttRotSearchWindow2, format: "%.1f", unit: "s",
+                                 dec: { swingDetector.puttRotSearchWindow2 = max(0.5, swingDetector.puttRotSearchWindow2 - 0.5) },
+                                 inc: { swingDetector.puttRotSearchWindow2 = min(10.0, swingDetector.puttRotSearchWindow2 + 0.5) })
+                        paramRow("Evt1:", value: swingDetector.puttRotEventWindow1, format: "%.2f", unit: "s",
+                                 dec: { swingDetector.puttRotEventWindow1 = max(0.01, swingDetector.puttRotEventWindow1 - 0.01) },
+                                 inc: { swingDetector.puttRotEventWindow1 = min(1.0, swingDetector.puttRotEventWindow1 + 0.01) })
+                        paramRow("Evt2:", value: swingDetector.puttRotEventWindow2, format: "%.2f", unit: "s",
+                                 dec: { swingDetector.puttRotEventWindow2 = max(0.01, swingDetector.puttRotEventWindow2 - 0.01) },
+                                 inc: { swingDetector.puttRotEventWindow2 = min(1.0, swingDetector.puttRotEventWindow2 + 0.01) })
 
-                        // Rotation time threshold
-                        HStack {
-                            Text("Rot T: \(String(format: "%.2f", swingDetector.rotationTimeThreshold)) s")
-                                .font(.system(size: 12))
-                            Spacer()
-                            Button("-") {
-                                swingDetector.rotationTimeThreshold = max(0.0, swingDetector.rotationTimeThreshold - 0.01)
-                            }
-                            .font(.system(size: 12))
-                            Button("+") {
-                                swingDetector.rotationTimeThreshold = min(1.0, swingDetector.rotationTimeThreshold + 0.01)
-                            }
-                            .font(.system(size: 12))
-                        }
+                        Text("Orient Return").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
+                        paramRow("Tol:", value: swingDetector.puttOrientReturnTolDeg, format: "%.1f", unit: "°",
+                                 dec: { swingDetector.puttOrientReturnTolDeg = max(0.5, swingDetector.puttOrientReturnTolDeg - 0.5) },
+                                 inc: { swingDetector.puttOrientReturnTolDeg = min(30.0, swingDetector.puttOrientReturnTolDeg + 0.5) })
                     }
                 }
 
@@ -288,6 +310,18 @@ struct AccelTestView: View {
         .onDisappear {
             // Stop motion monitoring when view disappears
             swingDetector.stopMonitoring()
+        }
+    }
+
+    @ViewBuilder
+    func paramRow(_ label: String, value: Double, format: String, unit: String,
+                  dec: @escaping () -> Void, inc: @escaping () -> Void) -> some View {
+        HStack {
+            Text("\(label) \(String(format: format, value)) \(unit)")
+                .font(.system(size: 11))
+            Spacer()
+            Button("-", action: dec).font(.system(size: 12))
+            Button("+", action: inc).font(.system(size: 12))
         }
     }
 
