@@ -304,12 +304,8 @@ struct AccelTestView: View {
             .padding()
         }
         .onAppear {
-            // Start motion monitoring when view appears
+            // Ensure motion monitoring is running (may already be started by ActiveRoundView)
             swingDetector.startMonitoring()
-        }
-        .onDisappear {
-            // Stop motion monitoring when view disappears
-            swingDetector.stopMonitoring()
         }
     }
 
