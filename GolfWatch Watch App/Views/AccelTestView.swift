@@ -83,7 +83,7 @@ struct AccelTestView: View {
                 Divider()
 
                 // Rotation Table
-                Text("Rotation (rad/s)")
+                Text("Rotation (rad/s · °/s)")
                     .font(.caption)
                 Grid {
                     GridRow {
@@ -94,27 +94,27 @@ struct AccelTestView: View {
                     }
                     GridRow {
                         Text("M")
-                        Text(String(format: "%.2f", swingDetector.rotationMag))
+                        radDegRateCell(swingDetector.rotationMag)
                         Text("-")
-                        Text(String(format: "%.2f", swingDetector.maxRotationMag))
+                        radDegRateCell(swingDetector.maxRotationMag)
                     }
                     GridRow {
                         Text("X")
-                        Text(String(format: "%.2f", swingDetector.rotationX))
-                        Text(String(format: "%.2f", swingDetector.minRotationX))
-                        Text(String(format: "%.2f", swingDetector.maxRotationX))
+                        radDegRateCell(swingDetector.rotationX)
+                        radDegRateCell(swingDetector.minRotationX)
+                        radDegRateCell(swingDetector.maxRotationX)
                     }
                     GridRow {
                         Text("Y")
-                        Text(String(format: "%.2f", swingDetector.rotationY))
-                        Text(String(format: "%.2f", swingDetector.minRotationY))
-                        Text(String(format: "%.2f", swingDetector.maxRotationY))
+                        radDegRateCell(swingDetector.rotationY)
+                        radDegRateCell(swingDetector.minRotationY)
+                        radDegRateCell(swingDetector.maxRotationY)
                     }
                     GridRow {
                         Text("Z")
-                        Text(String(format: "%.2f", swingDetector.rotationZ))
-                        Text(String(format: "%.2f", swingDetector.minRotationZ))
-                        Text(String(format: "%.2f", swingDetector.maxRotationZ))
+                        radDegRateCell(swingDetector.rotationZ)
+                        radDegRateCell(swingDetector.minRotationZ)
+                        radDegRateCell(swingDetector.maxRotationZ)
                     }
                 }
                 .font(.system(size: 11, design: .monospaced))
@@ -122,35 +122,61 @@ struct AccelTestView: View {
                 Divider()
 
                 // Attitude Table
-                Text("Attitude (rad)")
+                Text("Attitude (rad · °)")
                     .font(.caption)
-                Grid {
-                    GridRow {
-                        Text("")
-                        Text("Cur").font(.caption2)
-                        Text("Min").font(.caption2)
-                        Text("Max").font(.caption2)
+                if swingDetector.isFrozen {
+                    Grid {
+                        GridRow {
+                            Text("")
+                            Text("Cur").font(.caption2)
+                            Text("Snap").font(.caption2)
+                        }
+                        GridRow {
+                            Text("Pitch")
+                            radDegCell(swingDetector.pitch)
+                            radDegCell(swingDetector.frozenPitch)
+                        }
+                        GridRow {
+                            Text("Roll")
+                            radDegCell(swingDetector.roll)
+                            radDegCell(swingDetector.frozenRoll)
+                        }
+                        GridRow {
+                            Text("Yaw")
+                            radDegCell(swingDetector.yaw)
+                            radDegCell(swingDetector.frozenYaw)
+                        }
                     }
-                    GridRow {
-                        Text("Pitch")
-                        Text(String(format: "%.2f", swingDetector.pitch))
-                        Text(String(format: "%.2f", swingDetector.minPitch))
-                        Text(String(format: "%.2f", swingDetector.maxPitch))
+                    .font(.system(size: 11, design: .monospaced))
+                } else {
+                    Grid {
+                        GridRow {
+                            Text("")
+                            Text("Cur").font(.caption2)
+                            Text("Min").font(.caption2)
+                            Text("Max").font(.caption2)
+                        }
+                        GridRow {
+                            Text("Pitch")
+                            radDegCell(swingDetector.pitch)
+                            radDegCell(swingDetector.minPitch)
+                            radDegCell(swingDetector.maxPitch)
+                        }
+                        GridRow {
+                            Text("Roll")
+                            radDegCell(swingDetector.roll)
+                            radDegCell(swingDetector.minRoll)
+                            radDegCell(swingDetector.maxRoll)
+                        }
+                        GridRow {
+                            Text("Yaw")
+                            radDegCell(swingDetector.yaw)
+                            radDegCell(swingDetector.minYaw)
+                            radDegCell(swingDetector.maxYaw)
+                        }
                     }
-                    GridRow {
-                        Text("Roll")
-                        Text(String(format: "%.2f", swingDetector.roll))
-                        Text(String(format: "%.2f", swingDetector.minRoll))
-                        Text(String(format: "%.2f", swingDetector.maxRoll))
-                    }
-                    GridRow {
-                        Text("Yaw")
-                        Text(String(format: "%.2f", swingDetector.yaw))
-                        Text(String(format: "%.2f", swingDetector.minYaw))
-                        Text(String(format: "%.2f", swingDetector.maxYaw))
-                    }
+                    .font(.system(size: 11, design: .monospaced))
                 }
-                .font(.system(size: 11, design: .monospaced))
 
                 Divider()
 
@@ -235,9 +261,9 @@ struct AccelTestView: View {
                         paramRow("Accel T:", value: swingDetector.accelTimeThreshold, format: "%.2f", unit: "s",
                                  dec: { swingDetector.accelTimeThreshold = max(0.0, swingDetector.accelTimeThreshold - 0.01) },
                                  inc: { swingDetector.accelTimeThreshold = min(1.0, swingDetector.accelTimeThreshold + 0.01) })
-                        paramRow("Rot:", value: swingDetector.rotationThreshold, format: "%.1f", unit: "r/s",
-                                 dec: { swingDetector.rotationThreshold = max(1.0, swingDetector.rotationThreshold - 0.1) },
-                                 inc: { swingDetector.rotationThreshold = min(30.0, swingDetector.rotationThreshold + 0.1) })
+                        paramRow("Rot:", value: swingDetector.rotationThreshold, format: "%.0f", unit: "°/s",
+                                 dec: { swingDetector.rotationThreshold = max(50.0, swingDetector.rotationThreshold - 5.0) },
+                                 inc: { swingDetector.rotationThreshold = min(2000.0, swingDetector.rotationThreshold + 5.0) })
                         paramRow("Rot T:", value: swingDetector.rotationTimeThreshold, format: "%.2f", unit: "s",
                                  dec: { swingDetector.rotationTimeThreshold = max(0.0, swingDetector.rotationTimeThreshold - 0.01) },
                                  inc: { swingDetector.rotationTimeThreshold = min(1.0, swingDetector.rotationTimeThreshold + 0.01) })
@@ -248,9 +274,6 @@ struct AccelTestView: View {
                             .foregroundColor(.cyan)
 
                         Text("Setup").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
-                        paramRow("Window:", value: swingDetector.puttWindowSeconds, format: "%.1f", unit: "s",
-                                 dec: { swingDetector.puttWindowSeconds = max(0.1, swingDetector.puttWindowSeconds - 0.1) },
-                                 inc: { swingDetector.puttWindowSeconds = min(5.0, swingDetector.puttWindowSeconds + 0.1) })
                         paramRow("Std:", value: swingDetector.puttStabilityStdDeg, format: "%.1f", unit: "°",
                                  dec: { swingDetector.puttStabilityStdDeg = max(1.0, swingDetector.puttStabilityStdDeg - 1.0) },
                                  inc: { swingDetector.puttStabilityStdDeg = min(90.0, swingDetector.puttStabilityStdDeg + 1.0) })
@@ -274,12 +297,12 @@ struct AccelTestView: View {
                                  inc: { swingDetector.puttRollMaxDeg += 0.5 })
 
                         Text("Rotation").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
-                        paramRow("Th1:", value: swingDetector.puttRotThreshold1, format: "%.2f", unit: "r/s",
-                                 dec: { swingDetector.puttRotThreshold1 = max(0.05, swingDetector.puttRotThreshold1 - 0.05) },
-                                 inc: { swingDetector.puttRotThreshold1 = min(5.0, swingDetector.puttRotThreshold1 + 0.05) })
-                        paramRow("Th2:", value: swingDetector.puttRotThreshold2, format: "%.2f", unit: "r/s",
-                                 dec: { swingDetector.puttRotThreshold2 = max(0.05, swingDetector.puttRotThreshold2 - 0.05) },
-                                 inc: { swingDetector.puttRotThreshold2 = min(5.0, swingDetector.puttRotThreshold2 + 0.05) })
+                        paramRow("Th1:", value: swingDetector.puttRotThreshold1, format: "%.1f", unit: "°/s",
+                                 dec: { swingDetector.puttRotThreshold1 = max(1.0, swingDetector.puttRotThreshold1 - 1.0) },
+                                 inc: { swingDetector.puttRotThreshold1 = min(300.0, swingDetector.puttRotThreshold1 + 1.0) })
+                        paramRow("Th2:", value: swingDetector.puttRotThreshold2, format: "%.1f", unit: "°/s",
+                                 dec: { swingDetector.puttRotThreshold2 = max(1.0, swingDetector.puttRotThreshold2 - 1.0) },
+                                 inc: { swingDetector.puttRotThreshold2 = min(300.0, swingDetector.puttRotThreshold2 + 1.0) })
                         paramRow("Srch1:", value: swingDetector.puttRotSearchWindow1, format: "%.1f", unit: "s",
                                  dec: { swingDetector.puttRotSearchWindow1 = max(0.5, swingDetector.puttRotSearchWindow1 - 0.5) },
                                  inc: { swingDetector.puttRotSearchWindow1 = min(10.0, swingDetector.puttRotSearchWindow1 + 0.5) })
@@ -306,6 +329,26 @@ struct AccelTestView: View {
         .onAppear {
             // Ensure motion monitoring is running (may already be started by ActiveRoundView)
             swingDetector.startMonitoring()
+        }
+    }
+
+    @ViewBuilder
+    func radDegCell(_ radValue: Double) -> some View {
+        VStack(spacing: 0) {
+            Text(String(format: "%.2f", radValue))
+            Text(String(format: "%.1f°", radValue * 180.0 / .pi))
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    func radDegRateCell(_ radPerSec: Double) -> some View {
+        VStack(spacing: 0) {
+            Text(String(format: "%.2f", radPerSec))
+            Text(String(format: "%.1f°", radPerSec * 180.0 / .pi))
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
         }
     }
 
