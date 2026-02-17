@@ -296,25 +296,19 @@ struct AccelTestView: View {
                                  dec: { swingDetector.puttRollMaxDeg -= 0.5 },
                                  inc: { swingDetector.puttRollMaxDeg += 0.5 })
 
-                        Text("Rotation").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
-                        paramRow("Th1:", value: swingDetector.puttRotThreshold1, format: "%.1f", unit: "°/s",
-                                 dec: { swingDetector.puttRotThreshold1 = max(1.0, swingDetector.puttRotThreshold1 - 1.0) },
-                                 inc: { swingDetector.puttRotThreshold1 = min(300.0, swingDetector.puttRotThreshold1 + 1.0) })
-                        paramRow("Th2:", value: swingDetector.puttRotThreshold2, format: "%.1f", unit: "°/s",
-                                 dec: { swingDetector.puttRotThreshold2 = max(1.0, swingDetector.puttRotThreshold2 - 1.0) },
-                                 inc: { swingDetector.puttRotThreshold2 = min(300.0, swingDetector.puttRotThreshold2 + 1.0) })
-                        paramRow("Srch1:", value: swingDetector.puttRotSearchWindow1, format: "%.1f", unit: "s",
-                                 dec: { swingDetector.puttRotSearchWindow1 = max(0.5, swingDetector.puttRotSearchWindow1 - 0.5) },
-                                 inc: { swingDetector.puttRotSearchWindow1 = min(10.0, swingDetector.puttRotSearchWindow1 + 0.5) })
-                        paramRow("Srch2:", value: swingDetector.puttRotSearchWindow2, format: "%.1f", unit: "s",
-                                 dec: { swingDetector.puttRotSearchWindow2 = max(0.5, swingDetector.puttRotSearchWindow2 - 0.5) },
-                                 inc: { swingDetector.puttRotSearchWindow2 = min(10.0, swingDetector.puttRotSearchWindow2 + 0.5) })
-                        paramRow("Evt1:", value: swingDetector.puttRotEventWindow1, format: "%.2f", unit: "s",
-                                 dec: { swingDetector.puttRotEventWindow1 = max(0.01, swingDetector.puttRotEventWindow1 - 0.01) },
-                                 inc: { swingDetector.puttRotEventWindow1 = min(1.0, swingDetector.puttRotEventWindow1 + 0.01) })
-                        paramRow("Evt2:", value: swingDetector.puttRotEventWindow2, format: "%.2f", unit: "s",
-                                 dec: { swingDetector.puttRotEventWindow2 = max(0.01, swingDetector.puttRotEventWindow2 - 0.01) },
-                                 inc: { swingDetector.puttRotEventWindow2 = min(1.0, swingDetector.puttRotEventWindow2 + 0.01) })
+                        Text("Shape").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
+                        paramRow("BS flr:", value: swingDetector.puttBackstrokeFloor, format: "%.2f", unit: "r/s",
+                                 dec: { swingDetector.puttBackstrokeFloor = max(0.01, swingDetector.puttBackstrokeFloor - 0.01) },
+                                 inc: { swingDetector.puttBackstrokeFloor = min(2.0, swingDetector.puttBackstrokeFloor + 0.01) })
+                        paramRow("FS/BS min:", value: swingDetector.puttMinFSBSRatio, format: "%.2f", unit: "x",
+                                 dec: { swingDetector.puttMinFSBSRatio = max(0.5, swingDetector.puttMinFSBSRatio - 0.05) },
+                                 inc: { swingDetector.puttMinFSBSRatio = min(5.0, swingDetector.puttMinFSBSRatio + 0.05) })
+                        paramRow("FS/BS max:", value: swingDetector.puttMaxFSBSRatio, format: "%.1f", unit: "x",
+                                 dec: { swingDetector.puttMaxFSBSRatio = max(1.0, swingDetector.puttMaxFSBSRatio - 0.5) },
+                                 inc: { swingDetector.puttMaxFSBSRatio = min(20.0, swingDetector.puttMaxFSBSRatio + 0.5) })
+                        paramRow("RotZ ceil:", value: swingDetector.puttRotZCeiling, format: "%.2f", unit: "r/s",
+                                 dec: { swingDetector.puttRotZCeiling = max(0.05, swingDetector.puttRotZCeiling - 0.05) },
+                                 inc: { swingDetector.puttRotZCeiling = min(3.0, swingDetector.puttRotZCeiling + 0.05) })
 
                         Text("Orient Return").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
                         paramRow("Tol:", value: swingDetector.puttOrientReturnTolDeg, format: "%.1f", unit: "°",
@@ -329,6 +323,10 @@ struct AccelTestView: View {
         .onAppear {
             // Ensure motion monitoring is running (may already be started by ActiveRoundView)
             swingDetector.startMonitoring()
+            swingDetector.isUIObserving = true
+        }
+        .onDisappear {
+            swingDetector.isUIObserving = false
         }
     }
 
