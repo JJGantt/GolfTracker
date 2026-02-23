@@ -1,0 +1,11 @@
+Putt Detection Diagnostic Log
+Outcome: reset
+Final State: qualified/inBackstroke
+Time: 2026-02-17 20:34:13 +0000
+═══════════════════════════════════════
+
+[452.70] SETUP: pitch=-14.1° roll=98.0° → accumulating
+[453.00] QUALIFIED: after 0.30s, refPitch=-16.0° refRoll=95.1°
+[453.00] WATCHING: stable backstroke start rotY=0.14 rotX=-0.13 rotZ=-0.04
+[453.49] BACKSTROKE→zero: peakRotY=1.02 peakRotX=2.07 peakRotZ=-0.28 dominant=false rotZOk=true
+[453.49] BACKSTROKE: invalid shape → RESET

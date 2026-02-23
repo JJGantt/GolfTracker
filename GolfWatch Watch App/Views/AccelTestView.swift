@@ -16,7 +16,7 @@ struct AccelTestView: View {
                 Button(swingDetector.isFrozen ? "reset" : "freeze_exts") {
                     swingDetector.toggleResetFreeze()
                 }
-                
+
                 Button("add_detect") {
                     swingDetector.simulateSwing()
                 }
@@ -24,11 +24,10 @@ struct AccelTestView: View {
                 // Recording controls right under freeze_opts
                 VStack(spacing: 4) {
                     if isRecording {
-                        Text("Recording: \(swingDetector.recordedDataPoints.count) samples")
+                        Text("Recording: \(swingDetector.recordingBufferCount) samples")
                             .font(.caption2)
                     }
 
-     
                     Button(isRecording ? "Stop" : "Record") {
                         if isRecording {
                             stopRecording()
@@ -36,9 +35,6 @@ struct AccelTestView: View {
                             startRecording()
                         }
                     }
-
-
-                    
                 }
 
                 Divider()
@@ -205,7 +201,6 @@ struct AccelTestView: View {
                     Text("Mode")
                         .font(.caption)
 
-                    // Off option
                     Button(action: { swingDetector.detectionMode = .off; swingDetector.resetToIdle() }) {
                         HStack {
                             Image(systemName: swingDetector.detectionMode == .off ? "circle.fill" : "circle")
@@ -217,7 +212,6 @@ struct AccelTestView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
 
-                    // Naive option
                     Button(action: { swingDetector.detectionMode = .naiveDetect; swingDetector.resetToIdle() }) {
                         HStack {
                             Image(systemName: swingDetector.detectionMode == .naiveDetect ? "circle.fill" : "circle")
@@ -229,7 +223,6 @@ struct AccelTestView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
 
-                    // Smart option
                     Button(action: { swingDetector.detectionMode = .smartDetect; swingDetector.resetToIdle() }) {
                         HStack {
                             Image(systemName: swingDetector.detectionMode == .smartDetect ? "circle.fill" : "circle")
@@ -240,6 +233,12 @@ struct AccelTestView: View {
                         }
                     }
                     .buttonStyle(PlainButtonStyle())
+
+                    Toggle("Require Contact", isOn: $swingDetector.requireContact)
+                        .font(.system(size: 12))
+
+                    Toggle("Auto Add", isOn: $swingDetector.autoAdd)
+                        .font(.system(size: 12))
                 }
 
                 Divider()
@@ -268,18 +267,55 @@ struct AccelTestView: View {
                                  dec: { swingDetector.rotationTimeThreshold = max(0.0, swingDetector.rotationTimeThreshold - 0.01) },
                                  inc: { swingDetector.rotationTimeThreshold = min(1.0, swingDetector.rotationTimeThreshold + 0.01) })
                     case .smartDetect:
-                        // Putt state indicator
-                        Text("State: \(swingDetector.puttStateDescription)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.cyan)
+                        // Last detected swing type
+                        if let lastSwing = swingDetector.lastDetectedSwing {
+                            Text("Last: \(lastSwing.swingType.rawValue)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(swingTypeColor(lastSwing.swingType))
+                        }
 
-                        Text("Setup").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
-                        paramRow("Std:", value: swingDetector.puttStabilityStdDeg, format: "%.1f", unit: "°",
-                                 dec: { swingDetector.puttStabilityStdDeg = max(1.0, swingDetector.puttStabilityStdDeg - 1.0) },
-                                 inc: { swingDetector.puttStabilityStdDeg = min(90.0, swingDetector.puttStabilityStdDeg + 1.0) })
-                        paramRow("Tol:", value: swingDetector.puttToleranceDeg, format: "%.2f", unit: "°",
-                                 dec: { swingDetector.puttToleranceDeg = max(0.5, swingDetector.puttToleranceDeg - 0.125) },
-                                 inc: { swingDetector.puttToleranceDeg = min(30.0, swingDetector.puttToleranceDeg + 0.125) })
+                        // Contact confirmation indicator (800Hz stream)
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(swingDetector.contactConfirmedRecently ? Color.green : Color.gray.opacity(0.4))
+                                .frame(width: 8, height: 8)
+                            Text(swingDetector.contactConfirmedRecently ? "contact ✓" : "no contact")
+                                .font(.system(size: 11))
+                                .foregroundColor(swingDetector.contactConfirmedRecently ? .green : .secondary)
+                        }
+
+                        // Continuous log send button
+                        Button("Send Log (\(swingDetector.continuousLogCount))") {
+                            swingDetector.sendContinuousLog()
+                        }
+                        .font(.system(size: 11))
+
+                        // Contact detection parameters
+                        Text("Contact").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
+                        paramRow("Bump:", value: swingDetector.impactBumpThresh, format: "%.3f", unit: "G",
+                                 dec: { swingDetector.impactBumpThresh = max(0.010, swingDetector.impactBumpThresh - 0.005) },
+                                 inc: { swingDetector.impactBumpThresh = min(0.200, swingDetector.impactBumpThresh + 0.005) })
+                        paramRow("Trough:", value: swingDetector.impactTroughRatio, format: "%.1f", unit: "x",
+                                 dec: { swingDetector.impactTroughRatio = max(0.5, swingDetector.impactTroughRatio - 0.1) },
+                                 inc: { swingDetector.impactTroughRatio = min(5.0, swingDetector.impactTroughRatio + 0.1) })
+                        paramRow("Rebound:", value: swingDetector.impactReboundRatio, format: "%.1f", unit: "x",
+                                 dec: { swingDetector.impactReboundRatio = max(0.5, swingDetector.impactReboundRatio - 0.1) },
+                                 inc: { swingDetector.impactReboundRatio = min(5.0, swingDetector.impactReboundRatio + 0.1) })
+
+                        // Boundary parameters
+                        Text("Boundaries").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
+                        paramRow("P/Pt:", value: swingDetector.puttPartialBoundary, format: "%.1f", unit: "r/s",
+                                 dec: { swingDetector.puttPartialBoundary = max(1.0, swingDetector.puttPartialBoundary - 0.5) },
+                                 inc: { swingDetector.puttPartialBoundary = min(15.0, swingDetector.puttPartialBoundary + 0.5) })
+                        paramRow("Pt/F:", value: swingDetector.partialFullBoundary, format: "%.1f", unit: "r/s",
+                                 dec: { swingDetector.partialFullBoundary = max(10.0, swingDetector.partialFullBoundary - 1.0) },
+                                 inc: { swingDetector.partialFullBoundary = min(50.0, swingDetector.partialFullBoundary + 1.0) })
+
+                        // Putt params
+                        Text("Putt").font(.system(size: 10, weight: .bold)).foregroundColor(.cyan)
+                        paramRow("RotCeil:", value: swingDetector.puttSetupRotMagCeiling, format: "%.3f", unit: "r/s",
+                                 dec: { swingDetector.puttSetupRotMagCeiling = max(0.01, swingDetector.puttSetupRotMagCeiling - 0.01) },
+                                 inc: { swingDetector.puttSetupRotMagCeiling = min(2.0, swingDetector.puttSetupRotMagCeiling + 0.01) })
                         paramRow("MinDur:", value: swingDetector.puttMinDurationS, format: "%.1f", unit: "s",
                                  dec: { swingDetector.puttMinDurationS = max(0.1, swingDetector.puttMinDurationS - 0.1) },
                                  inc: { swingDetector.puttMinDurationS = min(3.0, swingDetector.puttMinDurationS + 0.1) })
@@ -295,11 +331,6 @@ struct AccelTestView: View {
                         paramRow("R max:", value: swingDetector.puttRollMaxDeg, format: "%.1f", unit: "°",
                                  dec: { swingDetector.puttRollMaxDeg -= 0.5 },
                                  inc: { swingDetector.puttRollMaxDeg += 0.5 })
-
-                        Text("Shape").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
-                        paramRow("BS flr:", value: swingDetector.puttBackstrokeFloor, format: "%.2f", unit: "r/s",
-                                 dec: { swingDetector.puttBackstrokeFloor = max(0.01, swingDetector.puttBackstrokeFloor - 0.01) },
-                                 inc: { swingDetector.puttBackstrokeFloor = min(2.0, swingDetector.puttBackstrokeFloor + 0.01) })
                         paramRow("FS/BS min:", value: swingDetector.puttMinFSBSRatio, format: "%.2f", unit: "x",
                                  dec: { swingDetector.puttMinFSBSRatio = max(0.5, swingDetector.puttMinFSBSRatio - 0.05) },
                                  inc: { swingDetector.puttMinFSBSRatio = min(5.0, swingDetector.puttMinFSBSRatio + 0.05) })
@@ -310,10 +341,47 @@ struct AccelTestView: View {
                                  dec: { swingDetector.puttRotZCeiling = max(0.05, swingDetector.puttRotZCeiling - 0.05) },
                                  inc: { swingDetector.puttRotZCeiling = min(3.0, swingDetector.puttRotZCeiling + 0.05) })
 
-                        Text("Orient Return").font(.system(size: 10, weight: .bold)).foregroundColor(.secondary)
-                        paramRow("Tol:", value: swingDetector.puttOrientReturnTolDeg, format: "%.1f", unit: "°",
-                                 dec: { swingDetector.puttOrientReturnTolDeg = max(0.5, swingDetector.puttOrientReturnTolDeg - 0.5) },
-                                 inc: { swingDetector.puttOrientReturnTolDeg = min(30.0, swingDetector.puttOrientReturnTolDeg + 0.5) })
+                        // Partial params
+                        Text("Partial").font(.system(size: 10, weight: .bold)).foregroundColor(.green)
+                        paramRow("RotCeil:", value: swingDetector.partialSetupRotMagCeiling, format: "%.2f", unit: "r/s",
+                                 dec: { swingDetector.partialSetupRotMagCeiling = max(0.1, swingDetector.partialSetupRotMagCeiling - 0.1) },
+                                 inc: { swingDetector.partialSetupRotMagCeiling = min(5.0, swingDetector.partialSetupRotMagCeiling + 0.1) })
+                        paramRow("MinDur:", value: swingDetector.partialMinDurationS, format: "%.1f", unit: "s",
+                                 dec: { swingDetector.partialMinDurationS = max(0.1, swingDetector.partialMinDurationS - 0.1) },
+                                 inc: { swingDetector.partialMinDurationS = min(3.0, swingDetector.partialMinDurationS + 0.1) })
+                        paramRow("BS dur:", value: swingDetector.partialBsMinDurationS, format: "%.1f", unit: "s",
+                                 dec: { swingDetector.partialBsMinDurationS = max(0.1, swingDetector.partialBsMinDurationS - 0.1) },
+                                 inc: { swingDetector.partialBsMinDurationS = min(3.0, swingDetector.partialBsMinDurationS + 0.1) })
+                        paramRow("RotZ:", value: swingDetector.partialRotZThreshold, format: "%.1f", unit: "r/s",
+                                 dec: { swingDetector.partialRotZThreshold -= 0.1 },
+                                 inc: { swingDetector.partialRotZThreshold += 0.1 })
+                        paramRow("FS/BS min:", value: swingDetector.partialMinFSBSRatio, format: "%.1f", unit: "x",
+                                 dec: { swingDetector.partialMinFSBSRatio = max(1.0, swingDetector.partialMinFSBSRatio - 0.5) },
+                                 inc: { swingDetector.partialMinFSBSRatio = min(10.0, swingDetector.partialMinFSBSRatio + 0.5) })
+                        paramRow("FS/BS max:", value: swingDetector.partialMaxFSBSRatio, format: "%.1f", unit: "x",
+                                 dec: { swingDetector.partialMaxFSBSRatio = max(2.0, swingDetector.partialMaxFSBSRatio - 0.5) },
+                                 inc: { swingDetector.partialMaxFSBSRatio = min(20.0, swingDetector.partialMaxFSBSRatio + 0.5) })
+
+                        // Full swing params
+                        Text("Full").font(.system(size: 10, weight: .bold)).foregroundColor(.orange)
+                        paramRow("RotCeil:", value: swingDetector.fullSetupRotMagCeiling, format: "%.2f", unit: "r/s",
+                                 dec: { swingDetector.fullSetupRotMagCeiling = max(0.1, swingDetector.fullSetupRotMagCeiling - 0.1) },
+                                 inc: { swingDetector.fullSetupRotMagCeiling = min(5.0, swingDetector.fullSetupRotMagCeiling + 0.1) })
+                        paramRow("MinDur:", value: swingDetector.fullMinDurationS, format: "%.1f", unit: "s",
+                                 dec: { swingDetector.fullMinDurationS = max(0.1, swingDetector.fullMinDurationS - 0.1) },
+                                 inc: { swingDetector.fullMinDurationS = min(3.0, swingDetector.fullMinDurationS + 0.1) })
+                        paramRow("BS rotX:", value: swingDetector.fullBsRotXMin, format: "%.1f", unit: "r/s",
+                                 dec: { swingDetector.fullBsRotXMin = max(0.5, swingDetector.fullBsRotXMin - 0.5) },
+                                 inc: { swingDetector.fullBsRotXMin = min(10.0, swingDetector.fullBsRotXMin + 0.5) })
+                        paramRow("BS YZ:", value: swingDetector.fullBsYZRatioMax, format: "%.2f", unit: "x",
+                                 dec: { swingDetector.fullBsYZRatioMax = max(0.05, swingDetector.fullBsYZRatioMax - 0.05) },
+                                 inc: { swingDetector.fullBsYZRatioMax = min(1.0, swingDetector.fullBsYZRatioMax + 0.05) })
+                        paramRow("FS/BS min:", value: swingDetector.fullMinFSBSRatio, format: "%.1f", unit: "x",
+                                 dec: { swingDetector.fullMinFSBSRatio = max(1.0, swingDetector.fullMinFSBSRatio - 0.5) },
+                                 inc: { swingDetector.fullMinFSBSRatio = min(10.0, swingDetector.fullMinFSBSRatio + 0.5) })
+                        paramRow("FS/BS max:", value: swingDetector.fullMaxFSBSRatio, format: "%.1f", unit: "x",
+                                 dec: { swingDetector.fullMaxFSBSRatio = max(2.0, swingDetector.fullMaxFSBSRatio - 0.5) },
+                                 inc: { swingDetector.fullMaxFSBSRatio = min(20.0, swingDetector.fullMaxFSBSRatio + 0.5) })
                     }
                 }
 
@@ -321,12 +389,19 @@ struct AccelTestView: View {
             .padding()
         }
         .onAppear {
-            // Ensure motion monitoring is running (may already be started by ActiveRoundView)
             swingDetector.startMonitoring()
             swingDetector.isUIObserving = true
         }
         .onDisappear {
             swingDetector.isUIObserving = false
+        }
+    }
+
+    private func swingTypeColor(_ type: SwingType) -> Color {
+        switch type {
+        case .putt: return .cyan
+        case .partial: return .green
+        case .fullSwing: return .orange
         }
     }
 
@@ -369,12 +444,12 @@ struct AccelTestView: View {
     }
 
     private func stopRecording() {
-        swingDetector.stopRecording()
         isRecording = false
         WKInterfaceDevice.current().play(.stop)
 
-        // Send data to phone for sharing
-        swingDetector.sendRecordedDataToPhone()
+        swingDetector.stopRecording {
+            self.swingDetector.sendRecordedDataToPhone()
+        }
     }
 }
 

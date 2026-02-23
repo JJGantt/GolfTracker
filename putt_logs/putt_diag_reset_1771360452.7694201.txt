@@ -1,0 +1,10 @@
+Putt Detection Diagnostic Log
+Outcome: reset
+Final State: qualified/watching
+Time: 2026-02-17 20:34:12 +0000
+═══════════════════════════════════════
+
+[451.93] SETUP: pitch=-14.3° roll=120.7° → accumulating
+[452.23] QUALIFIED: after 0.30s, refPitch=-13.7° refRoll=118.8°
+[452.39] WATCHING: unstable start (grace) rotY=-0.92 rotX=-1.17 rotZ=-0.32 pitch=-11.4° roll=109.7°
+[452.69] WATCHING: grace expired after 0.30s → RESET

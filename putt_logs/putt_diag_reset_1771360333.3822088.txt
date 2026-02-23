@@ -1,0 +1,19 @@
+Putt Detection Diagnostic Log
+Outcome: reset
+Final State: qualified/inForwardStroke
+Time: 2026-02-17 20:32:13 +0000
+═══════════════════════════════════════
+
+[331.16] SETUP: pitch=-11.0° roll=117.8° → accumulating
+[331.16] ACCUM: deviated from mean pitchDelta=1.02° rollDelta=-7.13° → idle
+[331.17] SETUP: pitch=-8.9° roll=105.7° → accumulating
+[331.18] ACCUM: deviated from mean pitchDelta=0.01° rollDelta=-6.90° → idle
+[331.20] SETUP: pitch=-8.7° roll=91.2° → accumulating
+[331.20] ACCUM: out of range pitch=33.8° roll=-6.3° → idle
+[332.40] SETUP: pitch=-24.5° roll=122.0° → accumulating
+[332.70] QUALIFIED: after 0.30s, refPitch=-19.6° refRoll=115.1°
+[332.70] WATCHING: stable backstroke start rotY=0.47 rotX=0.31 rotZ=-0.15
+[332.85] BACKSTROKE→zero: peakRotY=0.47 peakRotX=0.31 peakRotZ=-0.15 dominant=true rotZOk=true
+[332.85] → FORWARD STROKE
+[332.87] FORWARD: orientReturn detected rollDelta=1.15°
+[333.26] FORWARD: rotY≥0 ended without detect. fsPeak=0.70 bsPeak=0.47 ratio=1.50 orientReturn=true → RESET
