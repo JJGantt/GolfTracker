@@ -67,7 +67,7 @@ All major features use `ObservableObject` classes as single sources of truth:
 - `WatchConnectivityManager` - iPhone-Watch communication (singleton)
 - `SwingDetectionManager` - Motion detection (singleton, Watch only)
 - `WorkoutManager` - HealthKit workout tracking (singleton, Watch only)
-- `SatelliteCacheManager` - Satellite image caching (singleton, iOS only)
+- `StatsEngine` - Round/player statistics (iOS only)
 
 ### Core Data Models
 
@@ -78,13 +78,7 @@ All data models are defined in `GolfTracker/Models/Models.swift` and are shared 
 - **Round**: References a course, contains strokes, targets, completion status, current hole index
 - **Stroke**: GPS coordinate, club, timestamp, optional trajectory heading, optional landing position, penalty flag, optional peak acceleration
 - **Target**: Hole-specific GPS markers for distance reference
-- **CourseSatelliteCache**: Contains large satellite image metadata and per-hole cropped images
-
 **Important**: When adding new fields to models, ensure they are `Codable` as they're serialized for JSON persistence and WatchConnectivity transfer.
-
-### Satellite Imagery System
-
-The SATELLITE_WATCH_FEATURE.md file in this directory contains all of the information for this feature.
 
 ### Motion Detection System
 
@@ -170,49 +164,72 @@ When implementing hole navigation features, always sync the hole index change vi
 3. Test both directions (iPhone → Watch and Watch → iPhone)
 4. Ensure data is properly encoded/decoded with `JSONEncoder`/`JSONDecoder`
 
-### Adding Satellite View to a New Screen
-
-1. Check if satellite cache exists for the hole/course using `SatelliteCacheManager.shared`
-2. On iOS: Use MapKit with `.mapStyle(.imagery)` or display cached image directly
-3. On Watch: Use `SatelliteImageView` component which handles coordinate-to-pixel transformation
-4. Ensure satellite images are transferred to Watch if needed via `SatelliteTransferManager`
-
 ## File Organization
 
 ```
-GolfTracker/                          # iOS app target
-├── App/GolfTrackerApp.swift          # iOS app entry point
-├── Models/Models.swift               # Shared data models (iOS + Watch)
+GolfTracker/                              # iOS app target
+├── App/GolfTrackerApp.swift              # iOS app entry point
+├── Models/
+│   ├── Models.swift                      # Shared data models (iOS + Watch)
+│   └── PlayerStats.swift                 # Player statistics models
 ├── Views/
-│   ├── Courses/                      # Course management screens
-│   ├── Rounds/                       # Round history screens
-│   ├── Play/                         # Active play interface
-│   │   ├── HolePlayView.swift        # Main play screen (776 lines)
-│   │   ├── HoleMapView.swift         # Interactive map component
-│   │   ├── FloatingButtonsView.swift # Action buttons overlay
-│   │   └── Components/               # Edit modes, modifiers
-│   ├── Shared/MapAnnotations.swift   # Custom map markers
-│   └── Test/TestFilesView.swift      # Motion data file viewer
+│   ├── ContentView.swift                 # Main tab view
+│   ├── Home/                             # Home & club management
+│   │   ├── HomeView.swift
+│   │   ├── ClubManagementView.swift
+│   │   ├── ClubEditorView.swift
+│   │   ├── ClubSetEditorView.swift
+│   │   └── TypeEditorView.swift
+│   ├── Courses/                          # Course management screens
+│   ├── Rounds/                           # Round history screens
+│   ├── Play/                             # Active play interface
+│   │   ├── HolePlayView.swift            # Main play screen
+│   │   ├── HoleMapView.swift             # Interactive map component
+│   │   ├── HoleOverlayControls.swift     # Distance/hole overlays
+│   │   ├── FloatingButtonsView.swift     # Action buttons overlay
+│   │   ├── StrokeDetailsView.swift       # Stroke info sheet
+│   │   ├── InRoundScorecardView.swift    # Live scorecard
+│   │   └── Components/                   # Edit modes, modifiers
+│   ├── Stats/StatsView.swift             # Statistics dashboard
+│   ├── Shared/MapAnnotations.swift       # Custom map markers
+│   └── Test/TestFilesView.swift          # Motion data file viewer
 ├── Services/
-│   ├── DataStore.swift               # iOS data persistence + sync callbacks
-│   ├── LocationManager.swift         # GPS tracking
-│   ├── WatchConnectivityManager.swift # iPhone-Watch communication
-│   ├── SatelliteCacheManager.swift   # Satellite image download/crop
-│   └── SatelliteTransferManager.swift # Transfer images to Watch
-└── Helpers/MapCalculations.swift     # Distance/bearing utilities
+│   ├── DataStore.swift                   # iOS data persistence + sync callbacks
+│   ├── LocationManager.swift             # GPS tracking
+│   ├── StatsEngine.swift                 # Statistics calculations
+│   └── WatchConnectivityManager.swift    # iPhone-Watch communication
+└── Helpers/MapCalculations.swift         # Distance/bearing utilities
 
-GolfWatch Watch App/                  # watchOS app target
-├── GolfWatchApp.swift                # Watch app entry point
+GolfWatch Watch App/                      # watchOS app target
+├── GolfWatchApp.swift                    # Watch app entry point
+├── ContentView.swift                     # Main Watch view
 ├── Views/
-│   ├── ActiveRoundView.swift         # Main Watch interface (1484 lines)
-│   ├── SatelliteImageView.swift      # Render cached satellite images
-│   ├── AccelTestView.swift           # Motion testing interface
-│   └── AddHoleView.swift / EditHoleView.swift
-└── Services/
-    ├── WatchDataStore.swift          # Watch data persistence + sync
-    ├── SwingDetectionManager.swift   # CoreMotion swing detection (419 lines)
-    ├── WorkoutManager.swift          # HealthKit workout tracking
-    └── WatchSatelliteCacheManager.swift # Watch-side image cache
+│   ├── WatchHomeView.swift               # Watch home screen
+│   ├── ActiveRoundView.swift             # Main Watch play interface
+│   ├── AccelTestView.swift               # Motion testing interface
+│   ├── OptionsView.swift                 # Settings menu
+│   ├── AddHoleNavigationView.swift       # Add hole flow
+│   ├── EditHoleView.swift                # Edit hole screen
+│   ├── ClubRecommendSettingsView.swift   # Club prediction settings
+│   ├── PredictGreenSettingsView.swift    # Green prediction settings
+│   └── ViewSettingsView.swift            # View preferences
+├── Services/
+│   ├── WatchDataStore.swift              # Watch data persistence + sync
+│   ├── SwingDetectionManager.swift       # CoreMotion swing detection
+│   ├── SwingAlgorithmProtocol.swift      # Detection algorithm protocol
+│   ├── UnifiedDetector.swift             # Unified stroke detector
+│   ├── FullSwingDetector.swift           # Full swing detection
+│   ├── PuttDetector.swift                # Putt detection
+│   ├── PartialDetector.swift             # Partial swing detection
+│   ├── EventBasedDetector.swift          # Event-based detection
+│   ├── IncrementalPeakDetector.swift     # Streaming peak detection
+│   ├── RollingMotionBuffer.swift         # Motion data buffer
+│   ├── DetectionEvents.swift             # Event structs
+│   └── WorkoutManager.swift              # HealthKit workout tracking
+└── Helpers/WatchOS10Compatibility.swift  # OS compatibility helpers
+
+docs/                                     # Design docs (gitignored planning files)
+swing_detection/                          # Python analysis tools (gitignored)
 ```
 
 ## Platform-Specific Notes
