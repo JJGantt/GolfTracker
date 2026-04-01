@@ -579,6 +579,15 @@ struct AccelTestView: View {
                         paramRow("Win R", value: swingDetector.unifContactWindowRight, format: "%.2f", unit: "s",
                                  dec: { swingDetector.unifContactWindowRight = max(0.05, swingDetector.unifContactWindowRight - 0.05) },
                                  inc: { swingDetector.unifContactWindowRight = min(1.0, swingDetector.unifContactWindowRight + 0.05) })
+                        paramRow("Max Rev", value: Double(swingDetector.unifMaxReversals), format: "%.0f", unit: "",
+                                 dec: { swingDetector.unifMaxReversals = max(1, swingDetector.unifMaxReversals - 1) },
+                                 inc: { swingDetector.unifMaxReversals = min(50, swingDetector.unifMaxReversals + 1) })
+                        paramRow("ΔT Min", value: swingDetector.unifBsToFsMin, format: "%.2f", unit: "s",
+                                 dec: { swingDetector.unifBsToFsMin = max(0.0, swingDetector.unifBsToFsMin - 0.05) },
+                                 inc: { swingDetector.unifBsToFsMin = min(swingDetector.unifBsToFsMax, swingDetector.unifBsToFsMin + 0.05) })
+                        paramRow("ΔT Max", value: swingDetector.unifBsToFsMax, format: "%.2f", unit: "s",
+                                 dec: { swingDetector.unifBsToFsMax = max(swingDetector.unifBsToFsMin, swingDetector.unifBsToFsMax - 0.05) },
+                                 inc: { swingDetector.unifBsToFsMax = min(10.0, swingDetector.unifBsToFsMax + 0.05) })
                     }
                 }
 

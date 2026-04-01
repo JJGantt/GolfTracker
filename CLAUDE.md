@@ -82,20 +82,29 @@ All data models are defined in `GolfTracker/Models/Models.swift` and are shared 
 
 ### Motion Detection System
 
-The swing detection system (Watch only) uses CoreMotion at 50Hz to analyze:
-- User acceleration (gravity removed)
-- Gyroscope rotation rate
-- Gravity vector
-- Device attitude (pitch, roll, yaw)
+The swing detection system (Watch only) uses CoreMotion at ~50Hz (requested at 100Hz, delivered ~50Hz in practice). All timing uses `data.timestamp` (CMDeviceMotion sensor time), not wall clock. 15 channels per sample: userAccel XYZ+Mag, rotation XYZ+Mag, gravity XYZ, pitch/roll/yaw.
 
-**Detection Algorithm** (`SwingDetectionManager.swift`):
-- Monitors acceleration magnitude against configurable threshold (default: 2.5G)
-- Triggers swing event when acceleration exceeds threshold for configurable duration (default: 0.1s)
-- Enforces 0.5s debounce period between swings
-- Captures peak acceleration and GPS location at swing moment
-- Provides haptic and audio feedback
+**Detection Modes** (`SwingDetectionManager.swift`, `DetectionMode` enum):
+- `off` — disabled
+- `naiveDetect` — fires when both rotMag AND accel exceed configurable thresholds simultaneously
+- `smartDetect` — putt shape state machine + naive detect in parallel; requires raw accel contact confirmation for putts
+- `unifiedDetect` — two separate `EventBasedDetector` instances (putt + swing); superseded
+- `unifDetect` — **current primary mode**: single `UnifiedDetector` with tri-state classification (putt/swing/ambig) and type-aware pairing; direct port of `unified_visualize.py`
 
-**Recording Mode**: Can record full 14-channel motion data to CSV for analysis, transferred to iPhone via WatchConnectivity and saved to documents directory.
+**Current Algorithm (`unifDetect` / `UnifiedDetector.swift`):**
+
+Three independent event streams run on every sample:
+1. **Setup events** — orientation stable in pitch [-25°, 0°] + roll [85°, 135°], rotMag ≤ 0.50 for ≥ 0.20s
+2. **BS top valleys** — `IncrementalPeakDetector` (valley) on rotMag, prominence ≥ 0.08, classified by area-under-curve: putt = (areaBeforeY > 0 && areaAfterY < 0), swing = (areaBeforeZ < 0 && areaAfterZ > 0)
+3. **FS peak peaks** — `IncrementalPeakDetector` (peak) on rotMag, prominence ≥ 0.15, classified: putt = (rotY < 0 && |rotZ| < |rotY|), swing = (areaBeforeZ > 5.0 && areaBeforeX < -5.0)
+
+Each event is tri-state classified (putt/swing/ambig). Pairing uses strict ordering (setup → BS top → FS peak) with type-aware matching — compatible types (same or ambig) pair; same-type/ambig intervening events block pairing. `pendingShapeEvent` is set on successful pair; `SwingDetectionManager` picks it up and fires `detectSwing()`.
+
+**Python source of truth**: `swing_detection/unified_visualize.py` — the Swift `UnifiedDetector.swift` is a direct port. When modifying detection logic, always update Python first, verify with visualizations, then port to Swift.
+
+**Raw Accelerometer (800Hz)**: `CMBatchedSensorManager` delivers batched raw accel at up to 800Hz for putt contact confirmation. Requires an active `HKWorkoutSession` (Apple hard requirement, WWDC23). The sensor hardware runs continuously on the motion coprocessor regardless — the battery cost is CPU wakes to process batches (~1/sec), not the sensor itself. Plan: only enable when putter is selected to save battery; use 100Hz device motion `userAccel` as fallback for full swings. Post-pairing contact gates for `unifDetect`: TV sum ≥ 0.1, min extrema ≥ 3, extrema spread < 0.75, baseline TV ≤ 0.75.
+
+**Recording Mode**: Can record full 14-channel motion data to CSV for analysis (`AccelTestView`), transferred to iPhone via WatchConnectivity and saved to documents directory.
 
 ## Key Implementation Patterns
 
