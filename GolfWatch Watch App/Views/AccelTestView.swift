@@ -298,6 +298,74 @@ struct AccelTestView: View {
                     Divider()
                 }
 
+                // Swing data log (always-on FP accumulator)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Swing Data Log")
+                        .font(.caption)
+                    Text("\(swingDetector.swingDataLogCount) entries")
+                        .font(.system(size: 11))
+                        .foregroundColor(swingDetector.swingDataLogCount > 0 ? .yellow : .gray)
+                    HStack(spacing: 8) {
+                        Button("Send") {
+                            swingDetector.sendSwingDataLog()
+                        }
+                        .disabled(swingDetector.swingDataLogCount == 0)
+                        .font(.system(size: 12))
+
+                        Button("Clear") {
+                            swingDetector.clearSwingDataLog()
+                        }
+                        .disabled(swingDetector.swingDataLogCount == 0)
+                        .font(.system(size: 12))
+                        .foregroundColor(.red)
+                    }
+                }
+
+                Divider()
+
+                // Data collection mode
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Data Collection")
+                        .font(.caption)
+
+                    if swingDetector.isDataCollectionMode {
+                        Toggle("Super Permissive", isOn: $swingDetector.dataCollectionSuperPermissive)
+                            .font(.system(size: 12))
+
+                        Toggle("800Hz Accel", isOn: $swingDetector.dataCollectionHighFreq)
+                            .font(.system(size: 12))
+
+                        if swingDetector.pendingDataCollectionEntry {
+                            Button("Mark False Positive") {
+                                swingDetector.markLastDataCollectionFalsePositive()
+                            }
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .background(Color.red.opacity(0.15))
+                            .cornerRadius(8)
+                        }
+
+                        Button("Stop Data Collection") {
+                            swingDetector.stopDataCollectionMode()
+                        }
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange)
+                    } else {
+                        Button("Start Data Collection") {
+                            swingDetector.startDataCollectionMode()
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(Color.green.opacity(0.2))
+                        .cornerRadius(8)
+                    }
+                }
+
+                Divider()
+
                 // Parameters section - mode-specific
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Parameters")
