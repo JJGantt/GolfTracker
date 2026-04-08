@@ -332,6 +332,12 @@ struct AccelTestView: View {
                         Toggle("Super Permissive", isOn: $swingDetector.dataCollectionSuperPermissive)
                             .font(.system(size: 12))
 
+                        if swingDetector.dataCollectionSuperPermissive {
+                            paramRow("RotMag", value: swingDetector.superPermissiveThreshold, format: "%.1f", unit: "r/s",
+                                     dec: { swingDetector.superPermissiveThreshold = max(1.0, swingDetector.superPermissiveThreshold - 1.0) },
+                                     inc: { swingDetector.superPermissiveThreshold = min(30.0, swingDetector.superPermissiveThreshold + 1.0) })
+                        }
+
                         Toggle("800Hz Accel", isOn: $swingDetector.dataCollectionHighFreq)
                             .font(.system(size: 12))
 
