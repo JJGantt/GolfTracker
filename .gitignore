@@ -53,9 +53,6 @@ docs/VISION.md
 prompt_lab/
 swing_detection/
 
-# Proprietary swing detection algorithm
-GolfWatch Watch App/Services/
-
 # Old consolidated directories (removed from repo)
 full_swing_samples/
 iregular_samples/
