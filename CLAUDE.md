@@ -276,3 +276,18 @@ Both iPhone and Watch support adding holes during an active round:
 - Changes sync immediately to paired device
 
 This is important for courses that haven't been pre-mapped.
+
+## Watch dev install gotcha — "Could not install at this time"
+Solved 2026-06-01 while debugging Capital Grille install; same applies to GolfTracker. Root cause: **Developer Mode on the watch is hidden until the system sees a dev-signed install attempt arrive via the direct Mac→Watch CoreDevice channel.** The iPhone→Watch app-relay path silently fails when Dev Mode is off — surfaces as an IDS socket timeout in `appconduitd` logs and a generic "Could not install at this time" dialog. App Store watch apps install fine because they don't need Dev Mode.
+
+Fix:
+1. Verify Mac sees the watch: `xcrun devicectl list devices`. If missing, kick remotepairingd:
+   ```
+   kill -9 $(launchctl list | awk '$3=="com.apple.CoreDevice.remotepairingd"{print $1}')
+   ```
+2. Run a direct install to the watch UDID — fails with `Developer Mode is disabled`, but unhides the toggle:
+   ```
+   xcrun devicectl device install app --device <Watch UDID> .../Debug-watchos/GolfTrackerWatch.app
+   ```
+3. Watch: Settings → Privacy & Security → Developer Mode → ON. Watch restarts.
+4. Re-run the install. Works going forward via either path.
